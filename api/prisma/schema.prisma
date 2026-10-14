@@ -1,0 +1,299 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum ApplicationStatus {
+  wishlist
+  applied
+  screening
+  interview
+  offer
+  accepted
+  rejected
+  withdrawn
+}
+
+enum ApplicationSource {
+  linkedin
+  jobstreet
+  glints
+  kalibrr
+  company_site
+  referral
+  other
+}
+
+enum WorkType {
+  onsite
+  hybrid
+  remote
+}
+
+enum UserRole {
+  user
+  admin
+}
+
+enum UserStatus {
+  active
+  suspended
+}
+
+model User {
+  id                 BigInt         @id @default(autoincrement()) @db.UnsignedBigInt
+  name               String         @db.VarChar(100)
+  email              String         @unique @db.VarChar(191)
+  passwordHash       String         @map("password_hash") @db.VarChar(255)
+  role               UserRole       @default(user)
+  status             UserStatus     @default(active)
+  mustChangePassword Boolean        @default(false) @map("must_change_password")
+  lastLoginAt        DateTime?      @map("last_login_at") @db.DateTime(0)
+  emailReminders     Boolean        @default(true) @map("email_reminders")
+  weeklyGoal         Int?           @map("weekly_goal") @db.UnsignedSmallInt
+  lastReminderOn     DateTime?      @map("last_reminder_on") @db.Date
+  aiEnabled          Boolean        @default(false) @map("ai_enabled")
+  aiMonthlyLimit     Int            @default(30) @map("ai_monthly_limit") @db.UnsignedSmallInt
+  isDemo             Boolean        @default(false) @map("is_demo")
+  demoExpiresAt      DateTime?      @map("demo_expires_at") @db.DateTime(0)
+  createdAt          DateTime       @default(now()) @map("created_at") @db.DateTime(0)
+  updatedAt          DateTime       @default(now()) @updatedAt @map("updated_at") @db.DateTime(0)
+  refreshTokens      RefreshToken[]
+  applications       Application[]
+  license            License?       @relation("LicenseOwner")
+  licensesCreated    License[]      @relation("LicenseCreator")
+  tasks              Task[]
+  attachments        Attachment[]
+  announcements      Announcement[]
+  announcementReads  AnnouncementRead[]
+  careerProfile      CareerProfile?
+  aiGenerations      AiGeneration[]
+  passwordResets     PasswordResetToken[]
+
+  @@index([isDemo, demoExpiresAt])
+  @@map("users")
+}
+
+/// Data penjualan akses seumur hidup (1:1 dengan akun pembeli).
+model License {
+  id          BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  userId      BigInt   @unique @map("user_id") @db.UnsignedBigInt
+  whatsapp    String?  @db.VarChar(20)
+  purchasedAt DateTime @map("purchased_at") @db.Date
+  price       Int?     @db.UnsignedInt
+  notes       String?  @db.Text
+  createdById BigInt?  @map("created_by") @db.UnsignedBigInt
+  createdAt   DateTime @default(now()) @map("created_at") @db.DateTime(0)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(0)
+  user        User     @relation("LicenseOwner", fields: [userId], references: [id], onDelete: Cascade)
+  createdBy   User?    @relation("LicenseCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([purchasedAt])
+  @@map("licenses")
+}
+
+model RefreshToken {
+  id        BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  userId    BigInt    @map("user_id") @db.UnsignedBigInt
+  tokenHash String    @unique @map("token_hash") @db.Char(64)
+  expiresAt DateTime  @map("expires_at") @db.DateTime(0)
+  revokedAt DateTime? @map("revoked_at") @db.DateTime(0)
+  createdAt DateTime  @default(now()) @map("created_at") @db.DateTime(0)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model Application {
+  id             BigInt            @id @default(autoincrement()) @db.UnsignedBigInt
+  userId         BigInt            @map("user_id") @db.UnsignedBigInt
+  company        String            @db.VarChar(150)
+  position       String            @db.VarChar(150)
+  status         ApplicationStatus @default(applied)
+  source         ApplicationSource @default(other)
+  location       String?           @db.VarChar(120)
+  workType       WorkType?         @map("work_type")
+  salaryMin      Int?              @map("salary_min") @db.UnsignedInt
+  salaryMax      Int?              @map("salary_max") @db.UnsignedInt
+  jobUrl         String?           @map("job_url") @db.VarChar(500)
+  contactName    String?           @map("contact_name") @db.VarChar(100)
+  contactEmail   String?           @map("contact_email") @db.VarChar(191)
+  appliedAt      DateTime          @map("applied_at") @db.Date
+  nextActionDate DateTime?         @map("next_action_date") @db.Date
+  nextActionNote String?           @map("next_action_note") @db.VarChar(255)
+  notes          String?           @db.Text
+  jobDescription String?           @map("job_description") @db.Text
+  deletedAt      DateTime?         @map("deleted_at") @db.DateTime(0)
+  createdAt      DateTime          @default(now()) @map("created_at") @db.DateTime(0)
+  updatedAt      DateTime          @default(now()) @updatedAt @map("updated_at") @db.DateTime(0)
+  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  history        StatusHistory[]
+  tasks          Task[]
+  attachments    Attachment[]
+  aiGenerations  AiGeneration[]
+
+  @@index([userId, status, deletedAt], map: "idx_app_user_status")
+  @@index([userId, appliedAt], map: "idx_app_user_applied")
+  @@index([userId, nextActionDate], map: "idx_app_user_next")
+  @@map("applications")
+}
+
+model StatusHistory {
+  id            BigInt      @id @default(autoincrement()) @db.UnsignedBigInt
+  applicationId BigInt      @map("application_id") @db.UnsignedBigInt
+  fromStatus    String?     @map("from_status") @db.VarChar(20)
+  toStatus      String      @map("to_status") @db.VarChar(20)
+  changedAt     DateTime    @default(now()) @map("changed_at") @db.DateTime(0)
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId, changedAt], map: "idx_hist_app")
+  @@map("status_history")
+}
+
+/// Tugas / to-do pengguna, opsional terkait satu lamaran.
+model Task {
+  id            BigInt       @id @default(autoincrement()) @db.UnsignedBigInt
+  userId        BigInt       @map("user_id") @db.UnsignedBigInt
+  applicationId BigInt?      @map("application_id") @db.UnsignedBigInt
+  title         String       @db.VarChar(200)
+  dueDate       DateTime?    @map("due_date") @db.Date
+  doneAt        DateTime?    @map("done_at") @db.DateTime(0)
+  createdAt     DateTime     @default(now()) @map("created_at") @db.DateTime(0)
+  updatedAt     DateTime     @default(now()) @updatedAt @map("updated_at") @db.DateTime(0)
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  application   Application? @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([userId, doneAt, dueDate], map: "idx_task_user_due")
+  @@index([applicationId])
+  @@map("tasks")
+}
+
+/// Berkas lampiran (CV, portofolio, surat lamaran) per lamaran. File disimpan di disk.
+model Attachment {
+  id            BigInt      @id @default(autoincrement()) @db.UnsignedBigInt
+  userId        BigInt      @map("user_id") @db.UnsignedBigInt
+  applicationId BigInt      @map("application_id") @db.UnsignedBigInt
+  originalName  String      @map("original_name") @db.VarChar(255)
+  storedName    String      @unique @map("stored_name") @db.VarChar(100)
+  mimeType      String      @map("mime_type") @db.VarChar(100)
+  size          Int         @db.UnsignedInt
+  createdAt     DateTime    @default(now()) @map("created_at") @db.DateTime(0)
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
+  @@index([userId])
+  @@map("attachments")
+}
+
+enum AnnouncementLevel {
+  info
+  update
+  promo
+}
+
+/// Pengumuman dari admin untuk semua pembeli.
+model Announcement {
+  id          BigInt             @id @default(autoincrement()) @db.UnsignedBigInt
+  title       String             @db.VarChar(150)
+  body        String             @db.Text
+  level       AnnouncementLevel  @default(info)
+  published   Boolean            @default(false)
+  createdById BigInt?            @map("created_by") @db.UnsignedBigInt
+  createdAt   DateTime           @default(now()) @map("created_at") @db.DateTime(0)
+  updatedAt   DateTime           @default(now()) @updatedAt @map("updated_at") @db.DateTime(0)
+  publishedAt DateTime?          @map("published_at") @db.DateTime(0)
+  createdBy   User?              @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  reads       AnnouncementRead[]
+
+  @@index([published, publishedAt])
+  @@map("announcements")
+}
+
+model AnnouncementRead {
+  userId         BigInt       @map("user_id") @db.UnsignedBigInt
+  announcementId BigInt       @map("announcement_id") @db.UnsignedBigInt
+  readAt         DateTime     @default(now()) @map("read_at") @db.DateTime(0)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+
+  @@id([userId, announcementId])
+  @@map("announcement_reads")
+}
+
+/// Profil karier pengguna — konteks utama untuk AI Career Assistant.
+model CareerProfile {
+  id           BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  userId       BigInt   @unique @map("user_id") @db.UnsignedBigInt
+  headline     String?  @db.VarChar(150)
+  summary      String?  @db.Text
+  skills       String?  @db.Text
+  experience   String?  @db.Text
+  education    String?  @db.Text
+  achievements String?  @db.Text
+  city         String?  @db.VarChar(100)
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(0)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("career_profiles")
+}
+
+enum AiGenerationKind {
+  cover_letter
+  interview_prep
+  ats_check
+  job_extract
+}
+
+enum AiGenerationStatus {
+  completed
+  failed
+  refused
+}
+
+/// Hasil AI per lamaran beserta pemakaian token & estimasi biaya.
+model AiGeneration {
+  id              BigInt             @id @default(autoincrement()) @db.UnsignedBigInt
+  userId          BigInt             @map("user_id") @db.UnsignedBigInt
+  applicationId   BigInt?            @map("application_id") @db.UnsignedBigInt
+  kind            AiGenerationKind
+  status          AiGenerationStatus
+  options         Json
+  content         String?            @db.MediumText
+  contentJson     Json?              @map("content_json")
+  editedContent   String?            @map("edited_content") @db.MediumText
+  rating          Int?               @db.TinyInt
+  model           String             @db.VarChar(60)
+  promptVersion   String             @map("prompt_version") @db.VarChar(20)
+  inputTokens     Int                @default(0) @map("input_tokens") @db.UnsignedInt
+  outputTokens    Int                @default(0) @map("output_tokens") @db.UnsignedInt
+  cacheReadTokens Int                @default(0) @map("cache_read_tokens") @db.UnsignedInt
+  costMicroUsd    Int                @default(0) @map("cost_micro_usd") @db.UnsignedInt
+  createdAt       DateTime           @default(now()) @map("created_at") @db.DateTime(0)
+  user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  application     Application?       @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([applicationId, kind])
+  @@map("ai_generations")
+}
+
+/// Token lupa password (hanya hash yang disimpan), berlaku singkat & sekali pakai.
+model PasswordResetToken {
+  id          BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  userId      BigInt    @map("user_id") @db.UnsignedBigInt
+  tokenHash   String    @unique @map("token_hash") @db.Char(64)
+  expiresAt   DateTime  @map("expires_at") @db.DateTime(0)
+  usedAt      DateTime? @map("used_at") @db.DateTime(0)
+  requestedIp String?   @map("requested_ip") @db.VarChar(45)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.DateTime(0)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("password_reset_tokens")
+}
