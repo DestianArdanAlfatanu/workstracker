@@ -65,8 +65,20 @@
   * {
     @apply border-border;
   }
+  /* Grid tanpa grid-cols-* (tampilan HP) memakai kolom `auto` yang ikut melebar mengikuti teks
+     terpanjang, sehingga kartu keluar dari layar. Kolom default dibuat selebar wadah; kelas
+     grid-cols-* (layer utilities) tetap menimpanya. */
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* Jaring pengaman: halaman tidak bisa digeser ke samping walau ada elemen yang kelebihan lebar. */
+  html,
+  body {
+    overflow-x: clip;
+  }
   body {
     @apply bg-background font-sans text-foreground antialiased;
+    overflow-wrap: break-word;
     /* viewport-fit=cover: hindari konten tertutup notch/status bar (mis. saat dipasang sebagai aplikasi). */
     padding-top: env(safe-area-inset-top);
     padding-left: env(safe-area-inset-left);

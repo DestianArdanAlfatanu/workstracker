@@ -35,7 +35,7 @@ export function TaskItem({ task, showApplication = true }: { task: Task; showApp
         aria-label={`Tandai "${task.title}" ${task.done ? 'belum selesai' : 'selesai'}`}
       />
       <div className="min-w-0 flex-1">
-        <p className={cn('text-sm font-medium', task.done && 'text-muted-foreground line-through')}>{task.title}</p>
+        <p className={cn('text-sm font-medium [overflow-wrap:anywhere]', task.done && 'text-muted-foreground line-through')}>{task.title}</p>
         <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
           {task.dueDate && (
             <span
@@ -54,10 +54,10 @@ export function TaskItem({ task, showApplication = true }: { task: Task; showApp
             <button
               type="button"
               onClick={() => ui.openDetail(task.application!.id)}
-              className="inline-flex items-center gap-1 hover:text-foreground hover:underline"
+              className="inline-flex min-w-0 max-w-full items-center gap-1 hover:text-foreground hover:underline"
             >
-              <Briefcase className="size-3" aria-hidden />
-              {task.application.company}
+              <Briefcase className="size-3 shrink-0" aria-hidden />
+              <span className="truncate">{task.application.company}</span>
             </button>
           )}
         </div>

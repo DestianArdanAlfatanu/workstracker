@@ -110,7 +110,7 @@ export function InsightPage() {
                     <span className={cn('flex size-10 shrink-0 items-center justify-center rounded-full', tone.cls)}>
                       <Icon className="size-[18px]" aria-hidden />
                     </span>
-                    <div>
+                    <div className="min-w-0 [overflow-wrap:anywhere]">
                       <p className="font-semibold">{ins.title}</p>
                       <p className="mt-0.5 text-sm text-muted-foreground">{ins.detail}</p>
                     </div>

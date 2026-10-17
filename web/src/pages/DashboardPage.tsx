@@ -237,13 +237,13 @@ export function DashboardPage() {
             ) : (
               <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {upcoming.data.map((app) => (
-                  <li key={app.id}>
+                  <li key={app.id} className="min-w-0">
                     <button
                       type="button"
                       onClick={() => ui.openDetail(app.id)}
                       className="flex h-full w-full flex-col gap-2 rounded-xl border p-3.5 text-left transition-colors hover:border-primary/40 hover:bg-accent/40"
                     >
-                      <span className="flex items-center justify-between gap-2">
+                      <span className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
                         <span className="flex items-center gap-1.5 whitespace-nowrap text-xs font-semibold tabular-nums text-muted-foreground">
                           <CalendarClock className="size-3.5" aria-hidden />
                           {formatDate(app.nextActionDate)}

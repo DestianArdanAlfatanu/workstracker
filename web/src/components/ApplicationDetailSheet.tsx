@@ -69,7 +69,7 @@ function DetailBody({ app }: { app: ApplicationDetail }) {
         </div>
         <Button
           onClick={() => setAiOpen(true)}
-          className="bg-[#0f172a] text-white hover:bg-[#1e293b]"
+          className="h-auto min-h-10 whitespace-normal bg-[#0f172a] py-2 text-left text-white hover:bg-[#1e293b]"
         >
           <Sparkles />
           AI Assistant: cover letter & persiapan interview

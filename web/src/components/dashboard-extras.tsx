@@ -189,12 +189,12 @@ export function AnnouncementCard({ a, onDismiss }: { a: Announcement; onDismiss?
       <span className={cn('flex size-10 shrink-0 items-center justify-center rounded-full', meta.badge)}>
         <Icon className="size-[18px]" aria-hidden />
       </span>
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <p className="flex flex-wrap items-center gap-2">
           <span className={cn('rounded-full px-2 py-0.5 text-[11px] font-semibold', meta.badge)}>{meta.label}</span>
-          <span className="font-semibold">{a.title}</span>
+          <span className="min-w-0 font-semibold [overflow-wrap:anywhere]">{a.title}</span>
         </p>
-        <p className="mt-1 whitespace-pre-line text-sm text-muted-foreground">{a.body}</p>
+        <p className="mt-1 whitespace-pre-line text-sm text-muted-foreground [overflow-wrap:anywhere]">{a.body}</p>
       </div>
       {onDismiss && (
         <button

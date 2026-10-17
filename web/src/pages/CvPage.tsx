@@ -276,7 +276,7 @@ function CvCard({ cv, readOnly }: { cv: CvDocument; readOnly: boolean }) {
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="font-semibold">{cv.label}</h3>
+            <h3 className="min-w-0 font-semibold [overflow-wrap:anywhere]">{cv.label}</h3>
             {cv.isDefault && (
               <span className="inline-flex items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-xs font-medium text-primary-foreground">
                 <Star className="size-3" aria-hidden />
