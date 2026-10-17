@@ -10,6 +10,7 @@ import {
   TriangleAlert,
   XCircle,
   type LucideIcon,
+  Upload,
 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
@@ -25,7 +26,9 @@ import {
 } from '@/components/charts';
 import { EmptyState } from '@/components/common';
 import { AnnouncementBanner, WeeklyGoalCard } from '@/components/dashboard-extras';
+import { InstallBanner } from '@/components/MobileAppCard';
 import { ShareProgressDialog } from '@/components/ShareProgressDialog';
+import { usePlan, useUpgradePrompt } from '@/components/plan';
 import { DueBadge, StatusBadge } from '@/components/status';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -70,7 +73,7 @@ function KpiCard({
     <Card
       className={cn(
         'flex flex-col gap-4 p-4 sm:p-5',
-        highlight && 'bg-gradient-to-br from-[#5470ff] to-[#3049e6] text-white shadow-[0_12px_28px_-12px_rgba(61,90,241,0.75)]',
+        highlight && 'border-transparent bg-[#1d4ed8] text-white shadow-[0_14px_28px_-20px_rgba(15,23,42,0.7)]',
       )}
     >
       <div className="flex items-start justify-between gap-2">
@@ -103,6 +106,8 @@ export function DashboardPage() {
   const upcoming = useUpcoming(5);
   const [months, setMonths] = useState('6');
   const [share, setShare] = useState(false);
+  const canShare = usePlan().has('share_card');
+  const [upgradeDialog, promptUpgrade] = useUpgradePrompt();
   const s = stats.data;
 
   if (stats.isError) {
@@ -138,6 +143,7 @@ export function DashboardPage() {
   return (
     <div className="flex flex-col gap-4">
       <AnnouncementBanner />
+      <InstallBanner />
       {s.overdueCount > 0 && (
         <Alert variant="warning" className="rounded-2xl">
           <TriangleAlert aria-hidden />
@@ -183,17 +189,78 @@ export function DashboardPage() {
               <EmptyState
                 icon={FileStack}
                 title="Belum ada lamaran"
-                description="Catat lamaran pertama Anda — cukup isi perusahaan, posisi, tanggal, dan status."
+                description="Catat lamaran pertama Anda. Cukup isi perusahaan, posisi, tanggal, dan status."
                 action={
-                  <Button onClick={ui.openCreate}>
-                    <Plus />
-                    Tambah lamaran
-                  </Button>
+                  <div className="flex flex-wrap justify-center gap-2">
+                    <Button onClick={ui.openCreate}>
+                      <Plus />
+                      Tambah lamaran
+                    </Button>
+                    <Button variant="outline" asChild>
+                      <Link to="/applications" state={{ openImport: true }}>
+                        <Upload />
+                        Impor dari Excel
+                      </Link>
+                    </Button>
+                  </div>
                 }
                 className="py-8"
               />
             ) : (
               <ActivityBarChart data={s.monthly.slice(-Number(months))} />
+            )}
+          </Card>
+
+          <Card className="flex flex-1 flex-col gap-4 p-5">
+            <CardHead
+              title="Jadwal Terdekat"
+              description="Interview dan follow-up yang perlu diingat"
+              action={
+                <Button asChild variant="outline" size="sm" className="rounded-full">
+                  <Link to="/applications?sort=next_action_date:asc">Lihat semua</Link>
+                </Button>
+              }
+            />
+            {upcoming.isPending ? (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <Skeleton key={i} className="h-20 w-full" />
+                ))}
+              </div>
+            ) : !upcoming.data?.length ? (
+              <EmptyState
+                icon={CalendarCheck2}
+                title="Tidak ada jadwal"
+                description="Isi tanggal tindak lanjut pada lamaran agar muncul di sini."
+                className="py-6"
+              />
+            ) : (
+              <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {upcoming.data.map((app) => (
+                  <li key={app.id}>
+                    <button
+                      type="button"
+                      onClick={() => ui.openDetail(app.id)}
+                      className="flex h-full w-full flex-col gap-2 rounded-xl border p-3.5 text-left transition-colors hover:border-primary/40 hover:bg-accent/40"
+                    >
+                      <span className="flex items-center justify-between gap-2">
+                        <span className="flex items-center gap-1.5 whitespace-nowrap text-xs font-semibold tabular-nums text-muted-foreground">
+                          <CalendarClock className="size-3.5" aria-hidden />
+                          {formatDate(app.nextActionDate)}
+                        </span>
+                        <DueBadge date={app.nextActionDate} status={app.status} />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-semibold">{app.company}</span>
+                        <span className="block truncate text-xs text-muted-foreground">
+                          {app.nextActionNote || app.position}
+                        </span>
+                      </span>
+                      <StatusBadge status={app.status} className="self-start" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
             )}
           </Card>
         </div>
@@ -206,7 +273,7 @@ export function DashboardPage() {
               title="Statistik Status"
               description="Komposisi lamaran berdasarkan status saat ini"
               action={
-                <Button variant="outline" size="sm" className="rounded-full" onClick={() => setShare(true)}>
+                <Button variant="outline" size="sm" className="rounded-full" onClick={() => (canShare ? setShare(true) : promptUpgrade('share_card'))}>
                   <Share2 />
                   Bagikan
                 </Button>
@@ -236,7 +303,7 @@ export function DashboardPage() {
             </p>
           </Card>
 
-          <Card className="flex flex-col gap-4 p-5">
+          <Card className="flex flex-1 flex-col gap-4 p-5">
             <CardHead
               title="Sumber Lamaran"
               description="Kanal yang paling sering Anda gunakan"
@@ -276,59 +343,8 @@ export function DashboardPage() {
         </div>
       </div>
 
-      <Card className="flex flex-col gap-4 p-5">
-        <CardHead
-          title="Jadwal Terdekat"
-          description="Interview dan follow-up yang perlu diingat"
-          action={
-            <Button asChild variant="outline" size="sm" className="rounded-full">
-              <Link to="/applications?sort=next_action_date:asc">Lihat semua</Link>
-            </Button>
-          }
-        />
-        {upcoming.isPending ? (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} className="h-20 w-full" />
-            ))}
-          </div>
-        ) : !upcoming.data?.length ? (
-          <EmptyState
-            icon={CalendarCheck2}
-            title="Tidak ada jadwal"
-            description="Isi tanggal tindak lanjut pada lamaran agar muncul di sini."
-            className="py-6"
-          />
-        ) : (
-          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
-            {upcoming.data.map((app) => (
-              <li key={app.id}>
-                <button
-                  type="button"
-                  onClick={() => ui.openDetail(app.id)}
-                  className="flex h-full w-full flex-col gap-2 rounded-xl border p-3.5 text-left transition-colors hover:border-primary/40 hover:bg-accent/40"
-                >
-                  <span className="flex items-center justify-between gap-2">
-                    <span className="flex items-center gap-1.5 text-xs font-semibold tabular-nums text-muted-foreground">
-                      <CalendarClock className="size-3.5" aria-hidden />
-                      {formatDate(app.nextActionDate)}
-                    </span>
-                    <DueBadge date={app.nextActionDate} status={app.status} />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm font-semibold">{app.company}</span>
-                    <span className="block truncate text-xs text-muted-foreground">
-                      {app.nextActionNote || app.position}
-                    </span>
-                  </span>
-                  <StatusBadge status={app.status} className="self-start" />
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
       <ShareProgressDialog open={share} onOpenChange={setShare} />
+      {upgradeDialog}
     </div>
   );
 }

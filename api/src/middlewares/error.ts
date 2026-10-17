@@ -17,7 +17,7 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
     return sendError(res, 'VALIDATION_ERROR', err.issues[0]?.message ?? 'Data tidak valid', fields);
   }
   if (err instanceof AppError) {
-    return sendError(res, err.code, err.message, err.fields);
+    return sendError(res, err.code, err.message, err.fields, err.details);
   }
   // Body JSON rusak dari express.json()
   if (typeof err === 'object' && err && 'type' in err && err.type === 'entity.parse.failed') {

@@ -3,7 +3,7 @@ import { mkdir, rm, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { logger } from './logger';
 
-/** Folder penyimpanan lampiran; per user di subfolder sesuai id. */
+/** Folder penyimpanan file CV ("CV Saya"); per user di subfolder sesuai id. */
 export const UPLOAD_DIR = path.resolve(process.env.UPLOAD_DIR ?? 'storage/uploads');
 
 export const userUploadDir = (userId: bigint) => path.join(UPLOAD_DIR, userId.toString());
@@ -23,7 +23,7 @@ export async function removeStoredFiles(files: Array<{ userId: bigint; storedNam
   await Promise.all(
     files.map(({ userId, storedName }) =>
       unlink(storedPath(userId, storedName)).catch((err: NodeJS.ErrnoException) => {
-        if (err.code !== 'ENOENT') logger.warn({ err, storedName }, 'Gagal menghapus file lampiran');
+        if (err.code !== 'ENOENT') logger.warn({ err, storedName }, 'Gagal menghapus file CV');
       }),
     ),
   );

@@ -173,7 +173,7 @@ export function MonthlyBarChart<T extends { month: string }>({
                 {active === i && (
                   <div
                     className={cn(
-                      'pointer-events-none absolute bottom-[calc(100%-2.5rem)] z-10 w-max rounded-xl bg-[#14162b] px-3 py-2 text-xs text-white shadow-lg',
+                      'pointer-events-none absolute bottom-[calc(100%-2.5rem)] z-10 w-max rounded-xl bg-[#0f172a] px-3 py-2 text-xs text-white shadow-lg',
                       i < data.length / 2 ? 'left-1/2' : 'right-1/2',
                     )}
                   >
@@ -304,8 +304,8 @@ export function StatusRadial({
 /* ------------------------------------------------------------------ */
 
 // Satu hue (biru brand), makin gelap = makin banyak. Label angka ada di dalam bubble.
-const BUBBLE_STEPS = ['#2b3fd0', '#3d5af1', '#6b80f4', '#a3b0f7'];
-const BUBBLE_TEXT = ['#ffffff', '#ffffff', '#ffffff', '#11142d'];
+const BUBBLE_STEPS = ['#1e3a8a', '#1d4ed8', '#3b82f6', '#93c5fd'];
+const BUBBLE_TEXT = ['#ffffff', '#ffffff', '#ffffff', '#0f172a'];
 // Posisi + radius maksimum per slot agar bubble tidak terpotong viewBox 190×180.
 const BUBBLE_POS = [
   { x: 112, y: 84, maxR: 60 },

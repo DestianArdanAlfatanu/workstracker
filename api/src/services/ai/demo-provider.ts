@@ -16,7 +16,7 @@ const DEMO_USAGE: AiUsageInfo = {
 };
 
 function promptText(prompt: AiPrompt) {
-  return prompt.content.map((b) => (b.type === 'text' ? b.text : '')).join('\n');
+  return prompt.parts.map((p) => (p.type === 'text' ? p.text : '')).join('\n');
 }
 
 const field = (text: string, label: string, fallback: string) =>
@@ -40,7 +40,7 @@ Saya ingin mengajukan lamaran untuk posisi ${position} di ${company}. Dengan tig
 
 Di PT Niaga Digital, saya membangun dashboard admin berbasis React yang kini dipakai lebih dari 200 staf setiap hari. Saya juga memimpin optimasi performa dengan code splitting yang menurunkan waktu muat halaman hingga 40%. Pengalaman ini sejalan dengan kebutuhan ${company} akan engineer yang memahami performa web dan kualitas kode.
 
-Saya terbiasa bekerja erat dengan tim produk dan desain, serta menulis unit test menggunakan Testing Library untuk menjaga kualitas rilis. Saya juga senang mempelajari teknologi baru — misalnya [sebutkan pengalaman GraphQL bila ada].
+Saya terbiasa bekerja erat dengan tim produk dan desain, serta menulis unit test menggunakan Testing Library untuk menjaga kualitas rilis. Saya juga senang mempelajari teknologi baru, misalnya [sebutkan pengalaman GraphQL bila ada].
 
 Saya akan sangat senang mendapat kesempatan untuk mendiskusikan bagaimana pengalaman saya dapat membantu tim ${company}. Terima kasih atas waktu dan perhatian Bapak/Ibu.
 
@@ -49,6 +49,17 @@ Pengunjung Demo`;
 }
 
 const SAMPLES = {
+  profile: {
+    headline: 'Frontend Developer',
+    summary:
+      'Frontend developer dengan tiga tahun pengalaman membangun aplikasi web React dan TypeScript. Terbiasa bekerja bersama tim produk dan desain, serta fokus pada performa dan kualitas kode.',
+    skills: 'React, TypeScript, Next.js, Tailwind CSS, Testing Library, Figma, Git',
+    experience:
+      'Frontend Developer, PT Niaga Digital (2023–sekarang)\n- Membangun dashboard admin React yang dipakai 200+ staf\n- Menurunkan waktu muat halaman 40% dengan code splitting\n\nWeb Developer, Studio Kreatif (2021–2023)\n- Mengembangkan 15+ landing page klien dengan Next.js',
+    education: 'S1 Teknik Informatika, Universitas Indonesia (2017–2021)',
+    achievements: '- Meta Front-End Developer Professional Certificate\n- Juara 2 Hackathon Fintech 2022',
+    city: 'Jakarta',
+  },
   prep: {
     overview:
       'Interview user biasanya menilai kedalaman teknis React/TypeScript, cara Anda mengoptimalkan performa, dan kemampuan berkolaborasi dengan tim produk.',
@@ -97,7 +108,7 @@ const SAMPLES = {
     matchedKeywords: ['React', 'TypeScript', 'Optimasi performa', 'Testing Library', 'Kolaborasi tim produk'],
     missingKeywords: ['GraphQL', 'Core Web Vitals', 'CI/CD'],
     requirements: [
-      { requirement: '2+ tahun React & TypeScript', status: 'met', evidence: 'Frontend Developer — PT Niaga Digital (2023–sekarang)', suggestion: 'Sebutkan total tahun pengalaman di ringkasan CV.' },
+      { requirement: '2+ tahun React & TypeScript', status: 'met', evidence: 'Frontend Developer, PT Niaga Digital (2023–sekarang)', suggestion: 'Sebutkan total tahun pengalaman di ringkasan CV.' },
       { requirement: 'Optimasi performa web', status: 'met', evidence: 'Menurunkan waktu muat halaman 40% dengan code splitting', suggestion: 'Tambahkan metrik Core Web Vitals yang membaik.' },
       { requirement: 'Menulis unit test', status: 'partial', evidence: 'Skill: Testing Library', suggestion: 'Tulis contoh proyek dengan cakupan test yang terukur.' },
       { requirement: 'Pengalaman GraphQL (nilai tambah)', status: 'missing', evidence: '', suggestion: 'Buat proyek portofolio kecil memakai GraphQL.' },
@@ -121,6 +132,28 @@ const SAMPLES = {
       'Tanggung jawab:\n- Mengembangkan fitur web dengan React & TypeScript\n- Berkolaborasi dengan tim produk dan desain\n\nKualifikasi:\n- Minimal 2 tahun pengalaman frontend\n- Memahami optimasi performa web',
     contactName: null,
     contactEmail: null,
+    contactPhone: null,
+    deadline: null,
+    applyInstructions: null,
+    posterText: null,
+  },
+  poster: {
+    company: 'PT Sinar Logistik Nusantara',
+    position: 'Staff Admin Gudang',
+    location: 'Surabaya',
+    workType: 'onsite',
+    salaryMin: 4500000,
+    salaryMax: 5500000,
+    source: 'instagram',
+    jobDescription:
+      'Tanggung jawab:\n- Mencatat barang masuk & keluar gudang\n- Membuat laporan stok harian\n\nKualifikasi:\n- Pendidikan min. SMA/SMK sederajat\n- Usia maks. 30 tahun\n- Menguasai Microsoft Excel\n- Teliti, jujur, dan bertanggung jawab',
+    contactName: null,
+    contactEmail: 'rekrutmen@sinarlogistik.co.id',
+    contactPhone: '081234567890',
+    deadline: '2026-10-31',
+    applyInstructions: 'Kirim CV & pas foto ke rekrutmen@sinarlogistik.co.id dengan subjek "Admin Gudang_Nama Lengkap".',
+    posterText:
+      'WE ARE HIRING!\nPT SINAR LOGISTIK NUSANTARA\nStaff Admin Gudang\nPenempatan: Surabaya\nGaji Rp 4,5 – 5,5 juta\n\nKualifikasi:\n• Min. SMA/SMK sederajat\n• Usia maks. 30 tahun\n• Menguasai Microsoft Excel\n• Teliti, jujur, dan bertanggung jawab\n\nKirim CV & pas foto ke rekrutmen@sinarlogistik.co.id\nSubjek: Admin Gudang_Nama Lengkap\nPaling lambat 31 Oktober 2026\nInfo: 0812-3456-7890 (WA)',
   },
 };
 
@@ -136,9 +169,10 @@ export class DemoAiProvider implements AiProvider {
     return { text, usage: DEMO_USAGE };
   }
 
-  async structured<T>(_prompt: AiPrompt, schema: z.ZodType<T>) {
-    // Pilih contoh yang cocok dengan skema yang diminta.
-    for (const sample of [SAMPLES.prep, SAMPLES.ats, SAMPLES.extract]) {
+  async structured<T>(prompt: AiPrompt, schema: z.ZodType<T>) {
+    // Pilih contoh yang cocok dengan skema yang diminta (poster bila ada gambar).
+    const hasImage = prompt.parts.some((p) => p.type === 'file' && p.mimeType.startsWith('image/'));
+    for (const sample of [SAMPLES.prep, SAMPLES.ats, hasImage ? SAMPLES.poster : SAMPLES.extract, SAMPLES.profile]) {
       const parsed = schema.safeParse(sample);
       if (parsed.success) {
         await new Promise((r) => setTimeout(r, 1200));

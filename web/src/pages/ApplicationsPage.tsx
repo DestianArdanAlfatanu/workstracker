@@ -18,6 +18,7 @@ import {
   Plus,
   Rows3,
   Trash2,
+  Upload,
   X,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
@@ -31,6 +32,7 @@ import {
 } from '@/components/ApplicationList';
 import { errorMessage, useApplicationUI } from '@/components/application-ui';
 import { ConfirmDialog, EmptyState, Pagination, SearchInput } from '@/components/common';
+import { ImportDialog } from '@/components/ImportDialog';
 import { KanbanBoard } from '@/components/KanbanBoard';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -101,6 +103,14 @@ export function ApplicationsPage() {
   /* ---------------- Pilihan & aksi massal ---------------- */
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // Pintasan ikon aplikasi (PWA): /applications?baru=1 langsung membuka form Tambah lamaran.
+  useEffect(() => {
+    if (params.get('baru') !== '1') return;
+    ui.openCreate();
+    update('baru', null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const [importOpen, setImportOpen] = useState(!!(location.state as { openImport?: boolean } | null)?.openImport);
   const bulk = useBulkAction();
 
   // Pilihan dikosongkan saat filter/halaman/tampilan berubah.
@@ -179,9 +189,10 @@ export function ApplicationsPage() {
 
   return (
     <div className="flex flex-col gap-4">
+      <ImportDialog open={importOpen} onOpenChange={setImportOpen} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="inline-flex rounded-xl bg-card p-1 shadow-[0_1px_3px_rgba(17,20,45,0.05)]" role="group" aria-label="Tampilan">
+          <div className="inline-flex rounded-xl bg-card p-1 shadow-[0_1px_3px_rgba(15,23,42,0.05)]" role="group" aria-label="Tampilan">
             {(
               [
                 { key: 'table', label: 'Tabel', icon: Rows3 },
@@ -214,6 +225,10 @@ export function ApplicationsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setImportOpen(true)}>
+            <Upload />
+            Impor
+          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline">
@@ -317,7 +332,7 @@ export function ApplicationsPage() {
         <>
           {selected.size > 0 && (
             <div
-              className="sticky top-2 z-20 flex flex-wrap items-center gap-2 rounded-2xl bg-[#14162b] px-4 py-2.5 text-sm text-white shadow-lg"
+              className="sticky top-2 z-20 flex flex-wrap items-center gap-2 rounded-2xl bg-[#0f172a] px-4 py-2.5 text-sm text-white shadow-lg"
               role="region"
               aria-label="Aksi massal"
             >
@@ -379,10 +394,16 @@ export function ApplicationsPage() {
                   title="Belum ada lamaran"
                   description="Mulai catat lamaran kerja Anda. Hanya butuh kurang dari satu menit."
                   action={
-                    <Button onClick={ui.openCreate}>
-                      <Plus />
-                      Tambah lamaran
-                    </Button>
+                    <div className="flex flex-wrap justify-center gap-2">
+                      <Button onClick={ui.openCreate}>
+                        <Plus />
+                        Tambah lamaran
+                      </Button>
+                      <Button variant="outline" onClick={() => setImportOpen(true)}>
+                        <Upload />
+                        Impor dari Excel
+                      </Button>
+                    </div>
                   }
                 />
               )

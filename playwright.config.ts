@@ -42,6 +42,9 @@ export default defineConfig({
         DEMO_RATE_LIMIT_MAX: '1000',
         RESET_RATE_LIMIT_MAX: '1000',
         AI_FAKE: '1',
+        // Pembayaran Midtrans disimulasikan (tombol "Bayar (simulasi)" di halaman status).
+        PAYMENT_FAKE: '1',
+        CHECKOUT_RATE_LIMIT_MAX: '1000',
         MAIL_PREVIEW: '1',
         MAIL_PREVIEW_DIR: E2E_MAIL_DIR,
       },

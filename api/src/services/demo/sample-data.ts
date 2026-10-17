@@ -49,8 +49,8 @@ export const SAMPLE_PROFILE = {
   summary: 'Frontend engineer yang fokus pada performa dan aksesibilitas, terbiasa bekerja dengan tim produk & desain.',
   skills: 'React, TypeScript, Next.js, Tailwind CSS, Testing Library, Figma, REST API',
   experience:
-    'Frontend Developer — PT Niaga Digital (2023–sekarang)\n- Membangun dashboard admin React yang dipakai 200+ staf\n- Menurunkan waktu muat halaman 40% dengan code splitting\n\nWeb Developer — Studio Kreatif (2021–2023)\n- Mengembangkan 15+ landing page klien dengan Next.js',
-  education: 'S1 Teknik Informatika — Universitas Indonesia (2017–2021)',
+    'Frontend Developer, PT Niaga Digital (2023–sekarang)\n- Membangun dashboard admin React yang dipakai 200+ staf\n- Menurunkan waktu muat halaman 40% dengan code splitting\n\nWeb Developer, Studio Kreatif (2021–2023)\n- Mengembangkan 15+ landing page klien dengan Next.js',
+  education: 'S1 Teknik Informatika, Universitas Indonesia (2017–2021)',
   achievements: 'Juara 2 Hackathon Fintech 2022; Sertifikasi Meta Front-End Developer',
 };
 

@@ -167,9 +167,9 @@ export function WeeklyGoalCard({ weekly }: { weekly: WeeklyProgress }) {
 /* ------------------------------------------------------------------ */
 
 export const LEVEL_META: Record<AnnouncementLevel, { label: string; icon: LucideIcon; tone: string; badge: string }> = {
-  info: { label: 'Info', icon: Megaphone, tone: 'from-[#eef1fe] to-white', badge: 'bg-accent text-accent-foreground' },
-  update: { label: 'Fitur baru', icon: Sparkles, tone: 'from-violet-50 to-white', badge: 'bg-violet-100 text-violet-800' },
-  promo: { label: 'Promo', icon: PartyPopper, tone: 'from-amber-50 to-white', badge: 'bg-amber-100 text-amber-900' },
+  info: { label: 'Info', icon: Megaphone, tone: 'border-l-4 border-l-[#1d4ed8]', badge: 'bg-accent text-accent-foreground' },
+  update: { label: 'Fitur baru', icon: Sparkles, tone: 'border-l-4 border-l-violet-500', badge: 'bg-violet-100 text-violet-800' },
+  promo: { label: 'Promo', icon: PartyPopper, tone: 'border-l-4 border-l-amber-500', badge: 'bg-amber-100 text-amber-900' },
 };
 
 /** Banner pengumuman terbaru yang belum ditutup. */
@@ -185,7 +185,7 @@ export function AnnouncementCard({ a, onDismiss }: { a: Announcement; onDismiss?
   const meta = LEVEL_META[a.level];
   const Icon = meta.icon;
   return (
-    <Card className={cn('relative flex gap-3 bg-gradient-to-r p-4 pr-12', meta.tone)} role="status">
+    <Card className={cn('relative flex gap-3 p-4 pr-12', meta.tone)} role="status">
       <span className={cn('flex size-10 shrink-0 items-center justify-center rounded-full', meta.badge)}>
         <Icon className="size-[18px]" aria-hidden />
       </span>

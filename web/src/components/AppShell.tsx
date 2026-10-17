@@ -3,14 +3,19 @@ import {
   CalendarClock,
   CalendarDays,
   CheckSquare,
+  FileText,
   Megaphone,
   ChevronDown,
   LayoutDashboard,
   Lightbulb,
   ListChecks,
+  Download,
+  MoreHorizontal,
+  Lock,
   LogOut,
   Plus,
   PlugZap,
+  Receipt,
   Search,
   Settings,
   Sparkles,
@@ -18,20 +23,24 @@ import {
   WifiOff,
   type LucideIcon,
 } from 'lucide-react';
+import { PLANS, requiredPlan, type Feature, type Plan } from '@wt/shared';
 import { useEffect, useState, type ReactNode } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAuth } from '@/lib/auth';
+import { useInstall } from '@/lib/pwa';
 import { dueState, formatDate } from '@/lib/format';
-import { useAnnouncements, useMarkAnnouncementRead, useUpcoming } from '@/lib/queries';
+import { useAiUsage, useAnnouncements, useMarkAnnouncementRead, useUpcoming } from '@/lib/queries';
 import { cn } from '@/lib/utils';
 import { ApplicationUIProvider, useApplicationUI } from './application-ui';
 import { Logo } from './brand';
 import { ConfirmDialog } from './common';
 import { DemoBanner } from './demo';
+import { PlanBadge, usePlan } from './plan';
 import { DueBadge } from './status';
 import { Alert } from './ui/alert';
 import { Button } from './ui/button';
+import { BottomSheetContent, Sheet, SheetDescription, SheetTitle } from './ui/sheet';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,21 +54,25 @@ interface NavItem {
   label: string;
   icon: LucideIcon;
   end: boolean;
+  /** Fitur paket; menu tetap tampil dengan gembok bila belum termasuk paket. */
+  feature?: Feature;
 }
 
 const MENU: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/applications', label: 'Lamaran', icon: ListChecks, end: false },
-  { to: '/calendar', label: 'Kalender', icon: CalendarDays, end: false },
-  { to: '/tasks', label: 'Tugas', icon: CheckSquare, end: false },
-  { to: '/insight', label: 'Insight', icon: Lightbulb, end: false },
+  { to: '/calendar', label: 'Kalender', icon: CalendarDays, end: false, feature: 'calendar' },
+  { to: '/tasks', label: 'Tugas', icon: CheckSquare, end: false, feature: 'tasks' },
+  { to: '/insight', label: 'Insight', icon: Lightbulb, end: false, feature: 'insight' },
 ];
 const ACCOUNT: NavItem[] = [
-  { to: '/profil-karier', label: 'Profil Karier', icon: Sparkles, end: false },
+  { to: '/cv', label: 'CV Saya', icon: FileText, end: false, feature: 'attachments' },
+  { to: '/profil-karier', label: 'Profil Karier', icon: Sparkles, end: false, feature: 'ai' },
   { to: '/settings', label: 'Pengaturan', icon: Settings, end: false },
 ];
 const ADMIN: NavItem[] = [
   { to: '/admin', label: 'Pembeli', icon: UsersRound, end: true },
+  { to: '/admin/orders', label: 'Pesanan', icon: Receipt, end: false },
   { to: '/admin/announcements', label: 'Pengumuman', icon: Megaphone, end: false },
   { to: '/admin/integrations', label: 'Integrasi', icon: PlugZap, end: false },
 ];
@@ -69,7 +82,10 @@ const PAGE_TITLES: Record<string, string> = {
   '/applications': 'Lamaran Saya',
   '/settings': 'Pengaturan Profil',
   '/profil-karier': 'Profil Karier',
+  '/cv': 'CV Saya',
+  '/bagikan': 'Simpan loker',
   '/admin': 'Kelola Pembeli',
+  '/admin/orders': 'Pesanan & Pembayaran',
   '/admin/announcements': 'Pengumuman',
   '/admin/integrations': 'Integrasi AI & Email',
   '/calendar': 'Kalender Aktivitas',
@@ -125,6 +141,8 @@ function ShellLayout() {
   const [confirmLogout, setConfirmLogout] = useState(false);
   const title = PAGE_TITLES[location.pathname] ?? 'WorksTracker';
   const isAdmin = state.user?.role === 'admin';
+  const { plan } = usePlan();
+  const keyboardOpen = useKeyboardOpen();
 
   const doLogout = async () => {
     setConfirmLogout(false);
@@ -143,13 +161,14 @@ function ShellLayout() {
 
       {/* Sidebar desktop: kartu mengambang */}
       <aside
-        className="sticky top-4 hidden max-h-[calc(100dvh-2rem)] flex-col gap-5 self-start overflow-y-auto rounded-2xl bg-card p-5 md:flex"
+        className="sticky top-4 hidden max-h-[calc(100dvh-2rem)] flex-col gap-5 self-start overflow-y-auto rounded-2xl border border-border bg-card p-5 md:flex"
         aria-label="Navigasi utama"
       >
-        <div className="shrink-0 px-1 pt-1">
+        <div className="flex shrink-0 flex-col items-start gap-2 px-1 pt-1">
           <Logo />
+          {!isAdmin && !state.user?.isDemo && <PlanBadge plan={plan} />}
         </div>
-        <Button onClick={ui.openCreate} className="w-full shrink-0 shadow-[0_8px_20px_-10px_rgba(61,90,241,0.8)]">
+        <Button onClick={ui.openCreate} className="w-full shrink-0">
           <Plus />
           Tambah lamaran
         </Button>
@@ -180,7 +199,8 @@ function ShellLayout() {
             <UserMenu
               name={state.user?.name}
               email={state.user?.email}
-              roleLabel={isAdmin ? 'Admin' : 'Pencari kerja'}
+              roleLabel={isAdmin ? 'Admin' : state.user?.isDemo ? 'Mode demo' : `Paket ${PLANS[plan].name}`}
+              plan={isAdmin || state.user?.isDemo ? null : plan}
               onLogout={() => setConfirmLogout(true)}
             />
           </div>
@@ -195,10 +215,10 @@ function ShellLayout() {
               }}
             />
           )}
-          {!online && (
+          {(!online || (state.status === 'authenticated' && state.offline)) && (
             <Alert variant="warning" className="mb-4">
               <WifiOff aria-hidden />
-              Anda sedang offline. Perubahan tidak dapat disimpan sampai koneksi kembali.
+              Anda sedang offline. Data yang tampil adalah data terakhir di perangkat ini; perubahan baru bisa disimpan setelah koneksi kembali.
             </Alert>
           )}
           <Outlet />
@@ -208,7 +228,11 @@ function ShellLayout() {
       {/* Bottom nav mobile */}
       <nav
         aria-label="Navigasi utama"
-        className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t bg-card pb-[env(safe-area-inset-bottom)] md:hidden"
+        className={cn(
+          'fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t bg-card pb-[env(safe-area-inset-bottom)] md:hidden',
+          // Disembunyikan saat keyboard HP terbuka agar tidak menutupi isian.
+          keyboardOpen && 'hidden',
+        )}
       >
         {MENU.slice(0, 2).map((item) => (
           <MobileNavLink key={item.to} {...item} />
@@ -223,9 +247,8 @@ function ShellLayout() {
           </span>
           Tambah
         </button>
-        {MENU.slice(2, 4).map((item) => (
-          <MobileNavLink key={item.to} {...item} />
-        ))}
+        <MobileNavLink {...MENU.find((m) => m.to === '/tasks')!} />
+        <MoreMenu isAdmin={isAdmin} onLogout={() => setConfirmLogout(true)} />
       </nav>
 
       <ConfirmDialog
@@ -241,10 +264,11 @@ function ShellLayout() {
 }
 
 function NavSection({ label, items, children }: { label: string; items: NavItem[]; children?: ReactNode }) {
+  const { has } = usePlan();
   return (
     <div className="flex shrink-0 flex-col gap-1">
       <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
-      {items.map(({ to, label: text, icon: Icon, end }) => (
+      {items.map(({ to, label: text, icon: Icon, end, feature }) => (
         <NavLink
           key={to}
           to={to}
@@ -252,12 +276,28 @@ function NavSection({ label, items, children }: { label: string; items: NavItem[
           className={({ isActive }) =>
             cn(
               'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground',
-              isActive && 'bg-primary text-primary-foreground shadow-[0_6px_16px_-6px_rgba(61,90,241,0.6)] hover:bg-primary hover:text-primary-foreground',
+              isActive && 'bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground',
             )
           }
         >
-          <Icon className="size-[18px]" aria-hidden />
-          {text}
+          {({ isActive }) => (
+            <>
+              <Icon className="size-[18px]" aria-hidden />
+              <span className="flex-1">{text}</span>
+              {feature && !has(feature) && (
+                <span
+                  className={cn(
+                    'inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold',
+                    isActive ? 'bg-white/20 text-white' : 'bg-muted text-muted-foreground',
+                  )}
+                  title={`Tersedia di paket ${PLANS[requiredPlan(feature)].name}`}
+                >
+                  <Lock className="size-3" aria-hidden />
+                  {PLANS[requiredPlan(feature)].name}
+                </span>
+              )}
+            </>
+          )}
         </NavLink>
       ))}
       {children}
@@ -266,7 +306,7 @@ function NavSection({ label, items, children }: { label: string; items: NavItem[
 }
 
 const iconButton =
-  'relative flex size-10 items-center justify-center rounded-full bg-card text-foreground shadow-[0_1px_3px_rgba(17,20,45,0.06)] transition-colors hover:bg-accent';
+  'relative flex size-10 items-center justify-center rounded-full bg-card text-foreground shadow-[0_1px_3px_rgba(15,23,42,0.06)] transition-colors hover:bg-accent';
 
 function SearchButton() {
   const navigate = useNavigate();
@@ -347,18 +387,22 @@ function UserMenu({
   name,
   email,
   roleLabel,
+  plan,
   onLogout,
 }: {
   name?: string;
   email?: string;
   roleLabel: string;
+  plan: Plan | null;
   onLogout: () => void;
 }) {
   const navigate = useNavigate();
+  const { has } = usePlan();
+  const usage = useAiUsage(!!plan && has('ai'));
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className="flex items-center gap-2.5 rounded-full py-1 pl-1 pr-1 transition-colors hover:bg-card sm:pr-3">
-        <span className="flex size-10 items-center justify-center rounded-full bg-gradient-to-br from-[#5b74ff] to-[#2b3fd0] text-sm font-semibold text-white">
+        <span className="flex size-10 items-center justify-center rounded-full bg-primary text-sm font-semibold text-white">
           {initials(name)}
         </span>
         <span className="hidden min-w-0 flex-col text-left lg:flex">
@@ -372,11 +416,21 @@ function UserMenu({
         <div className="px-2 py-1.5">
           <p className="truncate text-sm font-semibold">{name}</p>
           <p className="truncate text-xs text-muted-foreground">{email}</p>
+          {plan && (
+            <p className="mt-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+              <PlanBadge plan={plan} />
+              {has('ai') && usage.data && <span>{usage.data.balance} kredit AI</span>}
+            </p>
+          )}
         </div>
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={() => navigate('/insight')} className="rounded-lg md:hidden">
           <Lightbulb />
           Insight
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => navigate('/cv')} className="rounded-lg">
+          <FileText />
+          CV Saya
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={() => navigate('/profil-karier')} className="rounded-lg">
           <Sparkles />
@@ -395,7 +449,112 @@ function UserMenu({
   );
 }
 
-function MobileNavLink({ to, label, icon: Icon, end }: NavItem) {
+/** Keyboard virtual terbuka (tinggi viewport visual jauh lebih kecil dari layar). */
+function useKeyboardOpen() {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const update = () => {
+      const typing = document.activeElement instanceof HTMLElement && document.activeElement.matches('input, textarea, [contenteditable="true"]');
+      setOpen(typing && window.innerHeight - vv.height > 150);
+    };
+    vv.addEventListener('resize', update);
+    window.addEventListener('focusin', update);
+    window.addEventListener('focusout', update);
+    return () => {
+      vv.removeEventListener('resize', update);
+      window.removeEventListener('focusin', update);
+      window.removeEventListener('focusout', update);
+    };
+  }, []);
+  return open;
+}
+
+const MORE_ITEMS: NavItem[] = [
+  ...MENU.filter((m) => ['/calendar', '/insight'].includes(m.to)),
+  ...ACCOUNT,
+];
+
+/** Menu "Lainnya" di bottom nav HP: halaman yang tidak muat di 5 slot, pasang aplikasi, keluar. */
+function MoreMenu({ isAdmin, onLogout }: { isAdmin: boolean; onLogout: () => void }) {
+  const [open, setOpen] = useState(false);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { has } = usePlan();
+  const install = useInstall();
+  const items = isAdmin ? [...MORE_ITEMS, ...ADMIN] : MORE_ITEMS;
+  const active = items.some((i) => (i.end ? location.pathname === i.to : location.pathname.startsWith(i.to)));
+  useEffect(() => setOpen(false), [location.pathname]);
+
+  return (
+    <Sheet open={open} onOpenChange={setOpen}>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-haspopup="dialog"
+        className={cn('flex flex-col items-center justify-center gap-0.5 py-2 text-xs font-medium text-muted-foreground', active && 'text-primary')}
+      >
+        <span className={cn('flex h-7 w-12 items-center justify-center rounded-full', active && 'bg-accent')}>
+          <MoreHorizontal className="size-4" aria-hidden />
+        </span>
+        Lainnya
+      </button>
+      <BottomSheetContent aria-describedby={undefined}>
+        <SheetTitle className="px-1 pb-2 text-base font-bold">Menu lainnya</SheetTitle>
+        <SheetDescription className="sr-only">Halaman lain di WorksTracker</SheetDescription>
+        <ul className="grid grid-cols-3 gap-2" aria-label="Menu lainnya">
+          {items.map(({ to, label, icon: Icon, feature }) => {
+            const locked = feature && !has(feature);
+            const current = location.pathname === to;
+            return (
+              <li key={to}>
+                <button
+                  type="button"
+                  onClick={() => navigate(to)}
+                  aria-current={current ? 'page' : undefined}
+                  className={cn(
+                    'flex w-full flex-col items-center gap-1.5 rounded-2xl bg-muted px-2 py-3 text-xs font-medium',
+                    current && 'bg-accent text-primary',
+                  )}
+                >
+                  <span className="relative">
+                    <Icon className="size-5" aria-hidden />
+                    {locked && <Lock className="absolute -right-2.5 -top-1.5 size-3 rounded-full bg-card p-px text-muted-foreground" aria-label="terkunci" />}
+                  </span>
+                  {label}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+        <div className="mt-3 flex flex-col gap-1 border-t pt-3">
+          {install.canPrompt && !install.installed && (
+            <Button variant="ghost" className="justify-start" onClick={() => void install.install()}>
+              <Download />
+              Pasang aplikasi di HP
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            className="justify-start text-destructive hover:text-destructive"
+            onClick={() => {
+              setOpen(false);
+              onLogout();
+            }}
+          >
+            <LogOut />
+            Keluar
+          </Button>
+        </div>
+      </BottomSheetContent>
+    </Sheet>
+  );
+}
+
+function MobileNavLink({ to, label, icon: Icon, end, feature }: NavItem) {
+  const { has } = usePlan();
+  const locked = feature && !has(feature);
   return (
     <NavLink
       to={to}
@@ -409,8 +568,11 @@ function MobileNavLink({ to, label, icon: Icon, end }: NavItem) {
     >
       {({ isActive }) => (
         <>
-          <span className={cn('flex h-7 w-12 items-center justify-center rounded-full', isActive && 'bg-accent')}>
+          <span className={cn('relative flex h-7 w-12 items-center justify-center rounded-full', isActive && 'bg-accent')}>
             <Icon className="size-4" aria-hidden />
+            {locked && (
+              <Lock className="absolute right-1.5 top-0 size-3 rounded-full bg-card p-px text-muted-foreground" aria-label="terkunci" />
+            )}
           </span>
           {label}
         </>

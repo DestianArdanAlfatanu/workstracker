@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { BUY_MESSAGE, PRICE_PROMO, whatsappLink } from '@/lib/config';
+import { BUY_MESSAGE, PRICE_FROM, whatsappLink } from '@/lib/config';
 import { formatRupiah } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { Button, type ButtonProps } from './ui/button';
@@ -43,7 +43,7 @@ export function DemoBanner({ expiresAt, onExit }: { expiresAt: string | null; on
     <div
       role="status"
       className={cn(
-        'mb-4 flex flex-col gap-3 rounded-2xl bg-gradient-to-r from-[#14162b] to-[#2b3fd0] p-4 text-white sm:flex-row sm:items-center',
+        'mb-4 flex flex-col gap-3 rounded-2xl bg-[#0f172a] p-4 text-white sm:flex-row sm:items-center',
       )}
     >
       <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-white/15">
@@ -52,15 +52,15 @@ export function DemoBanner({ expiresAt, onExit }: { expiresAt: string | null; on
       <div className="min-w-0 flex-1">
         <p className="font-semibold">Anda sedang memakai mode demo</p>
         <p className="text-sm text-white/80">
-          Data contoh ini akan dihapus dalam {hoursLeft} jam. Upload lampiran, email, dan ganti password dinonaktifkan;
+          Data contoh ini akan dihapus dalam {hoursLeft} jam. Upload CV, email, dan ganti password dinonaktifkan;
           hasil AI berupa contoh.
         </p>
       </div>
       <div className="flex flex-wrap gap-2">
-        <Button asChild className="bg-white text-[#14162b] hover:bg-white/90">
+        <Button asChild className="bg-white text-[#0f172a] hover:bg-white/90">
           <a href={whatsappLink(BUY_MESSAGE)} target="_blank" rel="noopener noreferrer">
             <MessageCircle />
-            Beli akses {formatRupiah(PRICE_PROMO)}
+            Beli akses mulai {formatRupiah(PRICE_FROM)}
           </a>
         </Button>
         <Button variant="ghost" className="text-white hover:bg-white/10 hover:text-white" onClick={onExit}>

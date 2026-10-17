@@ -74,7 +74,7 @@ export async function sendMail(mail: Mail): Promise<{ preview: string | null }> 
     );
     const html = await inlineForPreview(mail.html, mail.attachments);
     await writeFile(file, `<!-- To: ${mail.to} | Subject: ${mail.subject} -->\n${html}`, 'utf8');
-    logger.info({ to: mail.to, subject: mail.subject, file }, 'SMTP belum diatur — email disimpan sebagai preview');
+    logger.info({ to: mail.to, subject: mail.subject, file }, 'SMTP belum diatur, email disimpan sebagai preview');
     return { preview: file };
   }
   const info = await getTransporter().sendMail({ from: MAIL_FROM, ...mail });

@@ -5,7 +5,7 @@ import { prisma } from '../lib/prisma';
 import type { Request, Response } from 'express';
 import type { AdminListQuery } from '@wt/shared';
 import { AppError, parseId } from '../lib/http';
-import { serializeAdminUser } from '../lib/serialize';
+import { serializeAdminUser, serializePurchase } from '../lib/serialize';
 import { currentUserId } from '../middlewares/auth';
 import * as admin from '../services/admin.service';
 
@@ -58,11 +58,24 @@ export async function remove(req: Request, res: Response) {
   res.status(204).end();
 }
 
-export async function setAi(req: Request, res: Response) {
-  const id = parseId(req.params.id);
-  const user = await admin.setAi(id, req.body);
+async function withUsage(id: bigint, user: Awaited<ReturnType<typeof admin.setPlan>>) {
   const ai = await admin.aiUsageFor([id]);
-  res.json({ data: serializeAdminUser(user, ai.get(id.toString()) ?? 0) });
+  return serializeAdminUser(user, ai.get(id.toString()) ?? 0);
+}
+
+export async function setPlan(req: Request, res: Response) {
+  const id = parseId(req.params.id);
+  res.json({ data: await withUsage(id, await admin.setPlan(currentUserId(req), id, req.body)) });
+}
+
+export async function addCredits(req: Request, res: Response) {
+  const id = parseId(req.params.id);
+  res.json({ data: await withUsage(id, await admin.addCredits(currentUserId(req), id, req.body)) });
+}
+
+export async function purchases(req: Request, res: Response) {
+  const items = await admin.purchasesOf(parseId(req.params.id));
+  res.json({ data: items.map(serializePurchase) });
 }
 /* ------------------------------ Integrasi ------------------------------ */
 
@@ -70,7 +83,7 @@ export async function integrations(_req: Request, res: Response) {
   res.json({ data: { ai: aiStatus(), email: mailStatus() } });
 }
 
-/** Tes koneksi Claude (panggilan kecil, biaya < Rp 50). */
+/** Tes koneksi Gemini (panggilan kecil, biaya < Rp 20). */
 export async function testAi(_req: Request, res: Response) {
   try {
     res.json({ data: { ok: true, ...(await pingAi()) } });

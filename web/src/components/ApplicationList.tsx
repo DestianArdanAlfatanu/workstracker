@@ -115,7 +115,7 @@ export function ApplicationTable({ items, selection }: { items: Application[]; s
                     <DueBadge date={app.nextActionDate} status={app.status} />
                   </div>
                 ) : (
-                  <span className="text-muted-foreground">—</span>
+                  <span className="text-muted-foreground">-</span>
                 )}
               </td>
               <td className="px-2 py-3" onClick={(e) => e.stopPropagation()}>
@@ -168,7 +168,7 @@ export function ApplicationCard({ app, selection }: { app: Application; selectio
             {formatDate(app.nextActionDate)}
           </span>
         )}
-        {salary !== '—' && <span>{salary}</span>}
+        {salary !== '-' && <span>{salary}</span>}
       </div>
     </li>
   );

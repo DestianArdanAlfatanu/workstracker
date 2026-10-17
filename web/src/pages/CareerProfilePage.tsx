@@ -1,7 +1,8 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { careerProfileSchema, type CareerProfile } from '@wt/shared';
-import { Info, Sparkles } from 'lucide-react';
-import { useEffect, useId, type ReactNode } from 'react';
+import { AI_CREDIT_COST, careerProfileSchema, type CareerProfile, type CareerProfileDraft } from '@wt/shared';
+import { FileText, Info, Sparkles } from 'lucide-react';
+import { useEffect, useId, useState, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import { useForm, type Resolver } from 'react-hook-form';
 import { toast } from 'sonner';
 import { errorMessage } from '@/components/application-ui';
@@ -10,8 +11,9 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input, Textarea } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useCareerProfile, useSaveCareerProfile } from '@/lib/queries';
+import { useCareerProfile, useCvs, useProfileFromCv, useSaveCareerProfile } from '@/lib/queries';
 import { cn } from '@/lib/utils';
 
 type Values = Record<'headline' | 'city' | 'summary' | 'skills' | 'experience' | 'education' | 'achievements', string>;
@@ -56,6 +58,7 @@ export function CareerProfilePage() {
     register,
     handleSubmit,
     reset,
+    setValue,
     formState: { errors, isDirty, isSubmitting },
   } = useForm<Values>({ resolver, defaultValues: toValues() });
 
@@ -72,6 +75,19 @@ export function CareerProfilePage() {
       toast.error(errorMessage(e));
     }
   });
+
+  /** Hasil AI mengisi form (belum disimpan); field yang tidak ditemukan di CV dibiarkan. */
+  const fillFromCv = (d: CareerProfileDraft) => {
+    let filled = 0;
+    for (const key of Object.keys(d) as (keyof CareerProfileDraft)[]) {
+      const value = d[key]?.trim();
+      if (!value) continue;
+      setValue(key, value, { shouldDirty: true, shouldValidate: true });
+      filled++;
+    }
+    if (filled) toast.success('Form terisi dari CV. Periksa dulu, lalu tekan Simpan profil.');
+    else toast.info('Tidak ada data profil yang terbaca dari CV ini.');
+  };
 
   if (isPending) return <Skeleton className="h-96 max-w-3xl rounded-2xl bg-card" />;
   const completeness = data?.completeness ?? 0;
@@ -105,6 +121,8 @@ export function CareerProfilePage() {
         </div>
       </Card>
 
+      <FromCvCard onFill={fillFromCv} />
+
       <Card className="grid gap-4 p-5 sm:grid-cols-2">
         <Field label="Headline" hint="mis. Frontend Engineer · 3 tahun pengalaman React" error={errors.headline?.message}>
           {(id) => <Input id={id} {...register('headline')} />}
@@ -133,13 +151,13 @@ export function CareerProfilePage() {
                 id={id}
                 rows={8}
                 {...register('experience')}
-                placeholder={'Frontend Developer — PT Contoh (2023–sekarang)\n- Membangun dashboard admin React yang dipakai 200+ staf\n- Mempercepat waktu muat halaman 40%'}
+                placeholder={'Frontend Developer, PT Contoh (2023–sekarang)\n- Membangun dashboard admin React yang dipakai 200+ staf\n- Mempercepat waktu muat halaman 40%'}
               />
             )}
           </Field>
         </div>
         <Field label="Pendidikan" error={errors.education?.message}>
-          {(id) => <Textarea id={id} rows={3} {...register('education')} placeholder="S1 Informatika — Universitas X (2019–2023)" />}
+          {(id) => <Textarea id={id} rows={3} {...register('education')} placeholder="S1 Informatika, Universitas X (2019–2023)" />}
         </Field>
         <Field label="Pencapaian & sertifikasi" error={errors.achievements?.message}>
           {(id) => <Textarea id={id} rows={3} {...register('achievements')} />}
@@ -158,5 +176,62 @@ export function CareerProfilePage() {
         </Button>
       </div>
     </form>
+  );
+}
+
+function FromCvCard({ onFill }: { onFill: (d: CareerProfileDraft) => void }) {
+  const cvs = useCvs();
+  const extract = useProfileFromCv();
+  const active = (cvs.data ?? []).filter((c) => !c.archived);
+  const [picked, setPicked] = useState<string>('');
+  const cvId = picked || String(active.find((c) => c.isDefault)?.id ?? active[0]?.id ?? '');
+
+  const run = () =>
+    extract.mutate(Number(cvId), {
+      onSuccess: onFill,
+      onError: (e) => toast.error(errorMessage(e)),
+    });
+
+  return (
+    <Card className="flex flex-col gap-3 p-5">
+      <div className="flex items-start gap-3">
+        <FileText className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden />
+        <div>
+          <h2 className="text-sm font-semibold">Isi otomatis dari CV</h2>
+          <p className="text-sm text-muted-foreground">
+            AI membaca CV dari CV Saya lalu mengisi form di bawah ({AI_CREDIT_COST.profile_extract} kredit). Hasilnya belum
+            tersimpan sampai Anda menekan Simpan profil.
+          </p>
+        </div>
+      </div>
+      {cvs.isPending ? null : active.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          Belum ada CV.{' '}
+          <Link to="/cv" className="font-medium text-primary underline-offset-2 hover:underline">
+            Unggah CV di CV Saya
+          </Link>
+        </p>
+      ) : (
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Select value={cvId} onValueChange={setPicked}>
+            <SelectTrigger aria-label="CV yang dibaca" className="sm:flex-1">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {active.map((c) => (
+                <SelectItem key={c.id} value={String(c.id)}>
+                  {c.label}
+                  {c.isDefault ? ' (utama)' : ''}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button type="button" variant="outline" onClick={run} loading={extract.isPending} disabled={!cvId}>
+            {!extract.isPending && <Sparkles />}
+            {extract.isPending ? 'Membaca CV…' : 'Isi dari CV'}
+          </Button>
+        </div>
+      )}
+    </Card>
   );
 }

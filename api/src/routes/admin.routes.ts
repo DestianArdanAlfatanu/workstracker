@@ -1,5 +1,11 @@
 import { Router } from 'express';
-import { adminAiSchema, adminCreateUserSchema, adminListQuerySchema, adminUpdateUserSchema } from '@wt/shared';
+import {
+  adminCreateUserSchema,
+  adminCreditsSchema,
+  adminListQuerySchema,
+  adminPlanSchema,
+  adminUpdateUserSchema,
+} from '@wt/shared';
 import * as ctrl from '../controllers/admin.controller';
 import { asyncHandler } from '../lib/http';
 import { requireAdmin, requireAuth } from '../middlewares/auth';
@@ -17,7 +23,9 @@ export function adminRoutes() {
   router.post('/admin/users/:id/suspend', asyncHandler(ctrl.suspend));
   router.post('/admin/users/:id/activate', asyncHandler(ctrl.activate));
   router.delete('/admin/users/:id', asyncHandler(ctrl.remove));
-  router.patch('/admin/users/:id/ai', validate(adminAiSchema), asyncHandler(ctrl.setAi));
+  router.patch('/admin/users/:id/plan', validate(adminPlanSchema), asyncHandler(ctrl.setPlan));
+  router.post('/admin/users/:id/credits', validate(adminCreditsSchema), asyncHandler(ctrl.addCredits));
+  router.get('/admin/users/:id/purchases', asyncHandler(ctrl.purchases));
   router.get('/admin/integrations', asyncHandler(ctrl.integrations));
   router.post('/admin/integrations/ai-test', asyncHandler(ctrl.testAi));
   router.post('/admin/integrations/email-test', asyncHandler(ctrl.testEmail));

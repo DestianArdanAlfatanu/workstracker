@@ -17,7 +17,7 @@ const rupiahFmt = new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 });
 
 /** "2026-10-13" → "13 Okt 2026" */
 export function formatDate(iso: string | null | undefined): string {
-  if (!iso) return '—';
+  if (!iso) return '-';
   return dateFmt.format(new Date(`${iso.slice(0, 10)}T00:00:00Z`));
 }
 
@@ -28,12 +28,12 @@ export function formatDateTime(iso: string): string {
 
 /** 8000000 → "Rp 8.000.000" */
 export function formatRupiah(value: number | null | undefined): string {
-  if (value == null) return '—';
+  if (value == null) return '-';
   return `Rp ${rupiahFmt.format(value)}`;
 }
 
 export function formatSalaryRange(min: number | null, max: number | null): string {
-  if (min == null && max == null) return '—';
+  if (min == null && max == null) return '-';
   if (min != null && max != null) return min === max ? formatRupiah(min) : `${formatRupiah(min)} – ${formatRupiah(max)}`;
   return min != null ? `≥ ${formatRupiah(min)}` : `≤ ${formatRupiah(max)}`;
 }

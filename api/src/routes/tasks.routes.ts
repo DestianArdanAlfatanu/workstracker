@@ -2,13 +2,13 @@ import { Router } from 'express';
 import { taskCreateSchema, taskListQuerySchema, taskUpdateSchema, type TaskListQuery } from '@wt/shared';
 import { asyncHandler, parseId } from '../lib/http';
 import { serializeTask } from '../lib/serialize';
-import { currentUserId, requireAuth } from '../middlewares/auth';
+import { currentUserId, requireAuth, requireFeature } from '../middlewares/auth';
 import { validate } from '../middlewares/validate';
 import * as tasks from '../services/tasks.service';
 
 export function taskRoutes() {
   const router = Router();
-  router.use('/tasks', requireAuth);
+  router.use('/tasks', requireAuth, requireFeature('tasks'));
 
   router.get(
     '/tasks',

@@ -32,3 +32,26 @@ export const SheetContent = forwardRef<
   </SheetPrimitive.Portal>
 ));
 SheetContent.displayName = 'SheetContent';
+
+/** Panel dari bawah layar (menu "Lainnya" & pilihan cepat di HP). */
+export const BottomSheetContent = forwardRef<
+  ElementRef<typeof SheetPrimitive.Content>,
+  ComponentPropsWithoutRef<typeof SheetPrimitive.Content>
+>(({ className, children, ...props }, ref) => (
+  <SheetPrimitive.Portal>
+    <SheetPrimitive.Overlay className="fixed inset-0 z-50 bg-black/40 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
+    <SheetPrimitive.Content
+      ref={ref}
+      className={cn(
+        'fixed inset-x-0 bottom-0 z-50 flex max-h-[85dvh] flex-col overflow-y-auto rounded-t-3xl bg-card px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3 shadow-xl',
+        'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom data-[state=closed]:duration-200 data-[state=open]:duration-300',
+        className,
+      )}
+      {...props}
+    >
+      <span aria-hidden className="mx-auto mb-3 h-1.5 w-10 shrink-0 rounded-full bg-[#d5d9e5]" />
+      {children}
+    </SheetPrimitive.Content>
+  </SheetPrimitive.Portal>
+));
+BottomSheetContent.displayName = 'BottomSheetContent';

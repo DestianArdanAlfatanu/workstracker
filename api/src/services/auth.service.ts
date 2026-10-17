@@ -1,4 +1,5 @@
 import { Prisma, type User } from '@prisma/client';
+import { hasFeature } from '@wt/shared';
 import bcrypt from 'bcrypt';
 import { REFRESH_TOKEN_TTL_MS } from '../lib/env';
 import { AppError } from '../lib/http';
@@ -57,6 +58,28 @@ export async function refresh(rawToken: string | undefined) {
     if (revoked.count === 0) throw invalidSession();
     return { user: stored.user, tokens: await issueTokens(stored.userId, tx) };
   });
+}
+
+/**
+ * Sesi untuk Chrome Extension: memakai refresh cookie milik website TANPA merotasinya
+ * (rotasi bersamaan dengan website bisa membuat website ter-logout). Hanya menerbitkan
+ * access token singkat; logout/ganti password/suspend di website otomatis memutus extension.
+ */
+export async function extensionSession(rawToken: string | undefined) {
+  if (!rawToken) throw invalidSession();
+  const stored = await prisma.refreshToken.findUnique({ where: { tokenHash: hashToken(rawToken) }, include: { user: true } });
+  if (!stored || stored.revokedAt || stored.expiresAt <= new Date()) throw invalidSession();
+  if (stored.user.status === 'suspended') throw suspendedError();
+  if (stored.user.isDemo) {
+    throw new AppError('FORBIDDEN', 'Chrome Extension tidak tersedia di mode demo. Beli akses untuk memakainya.');
+  }
+  if (stored.user.mustChangePassword) {
+    throw new AppError('PASSWORD_CHANGE_REQUIRED', 'Buat password baru di website WorksTracker terlebih dahulu.');
+  }
+  if (!hasFeature(stored.user.plan, stored.user.role, 'extension')) {
+    throw new AppError('PLAN_REQUIRED', 'Chrome Extension tersedia mulai paket Standar.', undefined, { requiredPlan: 'standard' });
+  }
+  return { user: stored.user, accessToken: signAccessToken(stored.userId) };
 }
 
 export async function logout(rawToken: string | undefined) {

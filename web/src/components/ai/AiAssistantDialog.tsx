@@ -1,9 +1,11 @@
 import {
+  AI_CREDIT_COST,
   AI_LANGUAGES,
   type AiGeneration,
   type AtsRequirement,
   type ApplicationDetail,
   type CoverLetterOptionsInput,
+  type CvDocument,
   type InterviewPrepOptionsInput,
   type InterviewQuestion,
 } from '@wt/shared';
@@ -29,13 +31,13 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { ApiError, apiStream } from '@/lib/api';
-import { whatsappLink } from '@/lib/config';
 import { formatDateTime } from '@/lib/format';
 import {
   useAiUsage,
   useAtsCheck,
   useCareerProfile,
   useCreatePracticeTasks,
+  useCvs,
   useDeleteGeneration,
   useGenerateInterviewPrep,
   useGenerations,
@@ -44,6 +46,7 @@ import {
 } from '@/lib/queries';
 import { cn } from '@/lib/utils';
 import { errorMessage } from '../application-ui';
+import { CreditInfo, UpgradeContent } from '../plan';
 import { Alert } from '../ui/alert';
 import { Button } from '../ui/button';
 import { Checkbox } from '../ui/checkbox';
@@ -75,12 +78,12 @@ type Tab = 'cover' | 'interview' | 'ats';
 
 // Opsi di form (CV dipilih sebagai id angka atau null).
 type CoverOpts = Required<Pick<CoverLetterOptionsInput, 'language' | 'tone' | 'length'>> & {
-  cvAttachmentId: number | null;
+  cvId: number | null;
   extraNotes: string;
 };
 type PrepOpts = Required<Pick<InterviewPrepOptionsInput, 'language' | 'focus'>> & {
   questionCount: number;
-  cvAttachmentId: number | null;
+  cvId: number | null;
 };
 
 export function AiAssistantDialog({
@@ -96,8 +99,8 @@ export function AiAssistantDialog({
   const profile = useCareerProfile();
   const [tab, setTab] = useState<Tab>('cover');
   const [consent, setConsent] = useState(readConsent);
-  const pdfs = app.attachments.filter((a) => a.mimeType === 'application/pdf');
   const u = usage.data;
+  const cvs = useCvs(!!u?.enabled).data ?? [];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -150,24 +153,21 @@ export function AiAssistantDialog({
                   </button>
                 ))}
               </div>
-              <span
-                className={cn(
-                  'rounded-full px-2.5 py-1 text-xs font-semibold tabular-nums',
-                  u.usedThisMonth >= u.limit ? 'bg-[#fde4e4] text-[#a32020]' : 'bg-accent text-accent-foreground',
-                )}
-              >
-                Kuota bulan ini: {u.usedThisMonth}/{u.limit}
-              </span>
+              <CreditInfo
+                balance={u.balance}
+                unlimited={u.unlimited}
+                cost={AI_CREDIT_COST[tab === 'cover' ? 'cover_letter' : tab === 'interview' ? 'interview_prep' : 'ats_check']}
+              />
             </div>
 
             <InputWarnings hasJobDescription={!!app.jobDescription?.trim()} completeness={profile.data?.completeness} />
 
             {tab === 'cover' ? (
-              <CoverLetterTab app={app} pdfs={pdfs} />
+              <CoverLetterTab app={app} cvs={cvs} />
             ) : tab === 'interview' ? (
-              <InterviewTab app={app} pdfs={pdfs} />
+              <InterviewTab app={app} cvs={cvs} />
             ) : (
-              <AtsTab app={app} pdfs={pdfs} />
+              <AtsTab app={app} cvs={cvs} />
             )}
           </div>
         )}
@@ -182,25 +182,20 @@ export function AiAssistantDialog({
 
 function Locked() {
   return (
-    <div className="flex flex-col items-center gap-3 rounded-2xl bg-gradient-to-br from-[#eef1fe] to-white px-6 py-10 text-center">
-      <span className="flex size-12 items-center justify-center rounded-full bg-primary text-primary-foreground">
-        <Lock className="size-5" aria-hidden />
-      </span>
-      <h3 className="text-lg font-bold">Aktifkan AI Career Assistant</h3>
-      <p className="max-w-md text-sm text-muted-foreground">
-        Buat cover letter yang dipersonalisasi untuk tiap lamaran dan siapkan interview dengan daftar pertanyaan, poin
-        jawaban, dan tips — berdasarkan profil dan deskripsi lowongan Anda. Tersedia sebagai add-on.
-      </p>
-      <Button asChild>
-        <a
-          href={whatsappLink('Halo admin, saya ingin mengaktifkan add-on AI Career Assistant di WorksTracker.')}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <MessageCircle />
-          Aktifkan via WhatsApp
-        </a>
-      </Button>
+    <div className="flex flex-col gap-4 rounded-2xl border border-[#bfdbfe] bg-accent p-5 sm:p-6">
+      <div className="flex items-start gap-3">
+        <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+          <Lock className="size-5" aria-hidden />
+        </span>
+        <div>
+          <h3 className="text-lg font-bold">AI Career Assistant ada di paket Premium</h3>
+          <p className="text-sm text-muted-foreground">
+            Cover letter yang disesuaikan, persiapan interview, Cek CV, dan isi otomatis dari poster loker. Semuanya
+            berdasarkan profil dan deskripsi lowongan Anda.
+          </p>
+        </div>
+      </div>
+      <UpgradeContent feature="ai" compact />
     </div>
   );
 }
@@ -213,9 +208,9 @@ function Consent({ onAccept }: { onAccept: () => void }) {
         <div className="flex flex-col gap-2 text-sm">
           <p className="font-semibold">Sebelum memakai AI</p>
           <p className="text-muted-foreground">
-            Untuk membuat hasil, WorksTracker mengirim data berikut ke penyedia AI (Anthropic): <strong>Profil Karier</strong>,
-            data lamaran ini (perusahaan, posisi, lokasi, status, catatan, deskripsi lowongan), dan CV PDF hanya jika Anda
-            memilihnya.
+            Untuk membuat hasil, WorksTracker mengirim data berikut ke penyedia AI (Google Gemini): <strong>Profil Karier</strong>,
+            data lamaran ini (perusahaan, posisi, lokasi, status, catatan, deskripsi lowongan), dan isi CV dari "CV Saya"
+            yang Anda pilih.
           </p>
           <p className="text-muted-foreground">
             Yang <strong>tidak</strong> dikirim: email & nomor Anda, kontak/email HR, gaji, dan lamaran lain. Hasil AI
@@ -234,7 +229,7 @@ function Consent({ onAccept }: { onAccept: () => void }) {
 function InputWarnings({ hasJobDescription, completeness }: { hasJobDescription: boolean; completeness?: number }) {
   const items: ReactNode[] = [];
   if (!hasJobDescription) {
-    items.push('Deskripsi lowongan belum diisi — tempelkan di form Edit lamaran agar hasil sesuai kebutuhan perusahaan.');
+    items.push('Deskripsi lowongan belum diisi. Tempelkan di form Edit lamaran agar hasilnya sesuai kebutuhan perusahaan.');
   }
   if (completeness !== undefined && completeness < 60) {
     items.push(
@@ -295,24 +290,34 @@ function OptionSelect<T extends string>({
 }
 
 function CvSelect({
-  pdfs,
+  cvs,
   value,
   onChange,
 }: {
-  pdfs: ApplicationDetail['attachments'];
+  cvs: CvDocument[];
   value: number | null;
   onChange: (v: number | null) => void;
 }) {
   return (
-    <OptionSelect
-      label="Sertakan CV (PDF)"
-      value={value ? String(value) : NO_CV}
-      onChange={(v) => onChange(v === NO_CV ? null : Number(v))}
-      options={[
-        { value: NO_CV, label: pdfs.length ? 'Tanpa CV' : 'Tidak ada lampiran PDF' },
-        ...pdfs.map((p) => ({ value: String(p.id), label: p.originalName })),
-      ]}
-    />
+    <div className="flex flex-col gap-1">
+      <OptionSelect
+        label="CV yang dibaca AI"
+        value={value ? String(value) : NO_CV}
+        onChange={(v) => onChange(v === NO_CV ? null : Number(v))}
+        options={[
+          { value: NO_CV, label: cvs.length ? 'Tanpa CV (Profil Karier saja)' : 'Belum ada CV' },
+          ...cvs.map((c) => ({
+            value: String(c.id),
+            label: c.label + (c.archived ? ' (versi lama)' : c.isDefault ? ' (utama)' : ''),
+          })),
+        ]}
+      />
+      {!cvs.length && (
+        <Link to="/cv" className="text-xs font-semibold text-primary underline-offset-2 hover:underline">
+          Unggah CV di CV Saya
+        </Link>
+      )}
+    </div>
   );
 }
 
@@ -386,7 +391,7 @@ function downloadDoc(text: string, filename: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-function CoverLetterTab({ app, pdfs }: { app: ApplicationDetail; pdfs: ApplicationDetail['attachments'] }) {
+function CoverLetterTab({ app, cvs }: { app: ApplicationDetail; cvs: CvDocument[] }) {
   const generations = useGenerations(app.id);
   const refresh = useRefreshAi();
   const update = useUpdateGeneration();
@@ -397,7 +402,7 @@ function CoverLetterTab({ app, pdfs }: { app: ApplicationDetail; pdfs: Applicati
     language: 'id',
     tone: 'formal',
     length: 'medium',
-    cvAttachmentId: null,
+    cvId: app.cv?.id ?? null,
     extraNotes: '',
   });
   const [selected, setSelected] = useState<AiGeneration | null>(null);
@@ -480,7 +485,7 @@ function CoverLetterTab({ app, pdfs }: { app: ApplicationDetail; pdfs: Applicati
             { value: 'long', label: 'Panjang' },
           ]}
         />
-        <CvSelect pdfs={pdfs} value={opts.cvAttachmentId} onChange={(cvAttachmentId) => setOpts((o) => ({ ...o, cvAttachmentId }))} />
+        <CvSelect cvs={cvs} value={opts.cvId} onChange={(cvId) => setOpts((o) => ({ ...o, cvId }))} />
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="cl-notes" className="text-xs text-muted-foreground">
@@ -610,7 +615,7 @@ const CATEGORY_LABEL: Record<InterviewQuestion['category'], { label: string; cls
   situational: { label: 'Situasional', cls: 'bg-[#dcf7e7] text-[#0f6b3a]' },
 };
 
-function InterviewTab({ app, pdfs }: { app: ApplicationDetail; pdfs: ApplicationDetail['attachments'] }) {
+function InterviewTab({ app, cvs }: { app: ApplicationDetail; cvs: CvDocument[] }) {
   const generations = useGenerations(app.id);
   const generate = useGenerateInterviewPrep();
   const createTasks = useCreatePracticeTasks();
@@ -619,7 +624,7 @@ function InterviewTab({ app, pdfs }: { app: ApplicationDetail; pdfs: Application
     language: 'id',
     focus: 'mixed',
     questionCount: 10,
-    cvAttachmentId: null,
+    cvId: app.cv?.id ?? null,
   });
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [picked, setPicked] = useState<Set<number>>(new Set());
@@ -686,7 +691,7 @@ function InterviewTab({ app, pdfs }: { app: ApplicationDetail; pdfs: Application
           onChange={(v) => setOpts((o) => ({ ...o, questionCount: Number(v) }))}
           options={['5', '8', '10', '12', '15'].map((n) => ({ value: n, label: n }))}
         />
-        <CvSelect pdfs={pdfs} value={opts.cvAttachmentId} onChange={(cvAttachmentId) => setOpts((o) => ({ ...o, cvAttachmentId }))} />
+        <CvSelect cvs={cvs} value={opts.cvId} onChange={(cvId) => setOpts((o) => ({ ...o, cvId }))} />
       </div>
       <div className="flex flex-wrap items-center gap-3">
         <Button onClick={run} loading={generate.isPending}>
@@ -853,12 +858,12 @@ const REQ_STATUS: Record<AtsRequirement['status'], { label: string; cls: string;
   missing: { label: 'Belum ada', cls: 'bg-[#fde4e4] text-[#a32020]', icon: '✕' },
 };
 
-function AtsTab({ app, pdfs }: { app: ApplicationDetail; pdfs: ApplicationDetail['attachments'] }) {
+function AtsTab({ app, cvs }: { app: ApplicationDetail; cvs: CvDocument[] }) {
   const generations = useGenerations(app.id);
   const check = useAtsCheck();
   const history = useMemo(() => (generations.data ?? []).filter((g) => g.kind === 'ats_check'), [generations.data]);
   const [language, setLanguage] = useState<'id' | 'en'>('id');
-  const [cvAttachmentId, setCv] = useState<number | null>(pdfs[0]?.id ?? null);
+  const [cvId, setCv] = useState<number | null>(app.cv?.id ?? null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const selected = history.find((g) => g.id === selectedId) ?? history[0] ?? null;
   const ats = selected?.ats;
@@ -866,7 +871,7 @@ function AtsTab({ app, pdfs }: { app: ApplicationDetail; pdfs: ApplicationDetail
 
   const run = () =>
     check.mutate(
-      { applicationId: app.id, input: { language, cvAttachmentId } },
+      { applicationId: app.id, input: { language, cvId } },
       {
         onSuccess: (g) => {
           setSelectedId(g.id);
@@ -879,7 +884,7 @@ function AtsTab({ app, pdfs }: { app: ApplicationDetail; pdfs: ApplicationDetail
   return (
     <div className="flex flex-col gap-4">
       <p className="text-sm text-muted-foreground">
-        Bandingkan CV {pdfs.length ? '' : '(atau Profil Karier) '}dengan deskripsi lowongan: skor kecocokan, kata kunci yang
+        Bandingkan CV {cvId ? '' : '(atau Profil Karier) '}dengan deskripsi lowongan: skor kecocokan, kata kunci yang
         hilang, dan saran perbaikan CV.
       </p>
       <div className="grid gap-3 sm:grid-cols-3">
@@ -890,7 +895,7 @@ function AtsTab({ app, pdfs }: { app: ApplicationDetail; pdfs: ApplicationDetail
           options={AI_LANGUAGES.map((l) => ({ value: l, label: LANG_LABEL[l] }))}
         />
         <div className="sm:col-span-2">
-          <CvSelect pdfs={pdfs} value={cvAttachmentId} onChange={setCv} />
+          <CvSelect cvs={cvs} value={cvId} onChange={setCv} />
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-3">
@@ -973,7 +978,7 @@ function KeywordList({ title, items, matched }: { title: string; items: string[]
     <div className="rounded-xl border p-4">
       <p className="mb-2 text-sm font-bold">{title}</p>
       {items.length === 0 ? (
-        <p className="text-sm text-muted-foreground">—</p>
+        <p className="text-sm text-muted-foreground">-</p>
       ) : (
         <ul className="flex flex-wrap gap-1.5">
           {items.map((k) => (

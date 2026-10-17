@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
-import type { UserRole } from '@wt/shared';
+import { FEATURE_LABELS, hasFeature, PLANS, requiredPlan, type Feature, type Plan, type UserRole } from '@wt/shared';
 import { AppError } from '../lib/http';
 import { verifyAccessToken } from '../lib/jwt';
 import { prisma } from '../lib/prisma';
@@ -10,6 +10,7 @@ declare global {
     interface Request {
       userId?: bigint;
       userRole?: UserRole;
+      userPlan?: Plan;
       isDemo?: boolean;
     }
   }
@@ -31,7 +32,7 @@ function authenticate({ allowPasswordChange }: { allowPasswordChange: boolean })
 
       const user = await prisma.user.findUnique({
         where: { id: userId },
-        select: { role: true, status: true, mustChangePassword: true, isDemo: true, demoExpiresAt: true },
+        select: { role: true, plan: true, status: true, mustChangePassword: true, isDemo: true, demoExpiresAt: true },
       });
       if (!user) return next(sessionExpired());
       if (user.isDemo && user.demoExpiresAt && user.demoExpiresAt <= new Date()) {
@@ -45,6 +46,7 @@ function authenticate({ allowPasswordChange }: { allowPasswordChange: boolean })
       }
       req.userId = userId;
       req.userRole = user.role;
+      req.userPlan = user.plan;
       req.isDemo = user.isDemo;
       next();
     } catch (e) {
@@ -74,4 +76,16 @@ export const blockDemo =
   (req: Request, _res: Response, next: NextFunction) => {
     if (req.isDemo) return next(new AppError('FORBIDDEN', `${feature} tidak tersedia di mode demo. Beli akses untuk memakai fitur ini.`));
     next();
+  };
+/** Tolak fitur yang tidak termasuk paket pengguna (admin selalu boleh). */
+export const requireFeature =
+  (feature: Feature) =>
+  (req: Request, _res: Response, next: NextFunction) => {
+    if (hasFeature(req.userPlan ?? 'basic', req.userRole ?? 'user', feature)) return next();
+    const plan = requiredPlan(feature);
+    next(
+      new AppError('PLAN_REQUIRED', `${FEATURE_LABELS[feature]} tersedia mulai paket ${PLANS[plan].name}.`, undefined, {
+        requiredPlan: plan,
+      }),
+    );
   };

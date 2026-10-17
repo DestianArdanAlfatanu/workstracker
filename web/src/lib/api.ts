@@ -40,6 +40,7 @@ interface SessionPayload {
 /** Ambil access token baru dari refresh cookie. Panggilan bersamaan digabung jadi satu. */
 export function refreshSession(): Promise<User | null> {
   refreshPromise ??= (async () => {
+    lastRefreshNetworkError = false;
     try {
       const res = await fetch(`${BASE}/auth/refresh`, { method: 'POST', credentials: 'same-origin' });
       if (!res.ok) {
@@ -51,6 +52,7 @@ export function refreshSession(): Promise<User | null> {
       return body.data.user;
     } catch {
       accessToken = null;
+      lastRefreshNetworkError = true;
       return null;
     } finally {
       refreshPromise = null;
@@ -58,6 +60,10 @@ export function refreshSession(): Promise<User | null> {
   })();
   return refreshPromise;
 }
+
+let lastRefreshNetworkError = false;
+/** true bila refresh terakhir gagal karena jaringan (bukan karena sesi tidak valid). */
+export const refreshFailedOffline = () => lastRefreshNetworkError;
 
 type QueryValue = string | number | undefined | null | string[];
 
@@ -120,7 +126,7 @@ async function toApiError(res: Response) {
   return new ApiError(res.status, err?.code ?? 'INTERNAL_ERROR', err?.message ?? 'Terjadi kesalahan, coba lagi nanti', err?.fields);
 }
 
-/** Unduh file (ekspor/lampiran) dengan header Authorization lalu simpan lewat browser. */
+/** Unduh file (ekspor/CV) dengan header Authorization lalu simpan lewat browser. */
 export async function downloadFile(path: string, query?: Record<string, QueryValue>, fallbackName = 'file') {
   const res = await sendWithRefresh(path, { query });
   if (!res.ok) throw await toApiError(res);

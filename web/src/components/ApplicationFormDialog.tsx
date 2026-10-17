@@ -12,17 +12,19 @@ import {
   type ApplicationCreate,
   type JobExtract,
 } from '@wt/shared';
-import { ChevronDown } from 'lucide-react';
-import { useEffect, useId, useState, type ReactNode } from 'react';
+import { ChevronDown, Lock } from 'lucide-react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Controller, useForm, type Resolver } from 'react-hook-form';
+import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { ApiError } from '@/lib/api';
 import { formatThousands } from '@/lib/format';
-import { useCreateApplication, useUpdateApplication } from '@/lib/queries';
+import { useCreateApplication, useCvs, useUpdateApplication } from '@/lib/queries';
 import { cn } from '@/lib/utils';
 import { errorMessage } from './application-ui';
 import { AutoFillPanel } from './ai/AutoFillPanel';
 import { ConfirmDialog } from './common';
+import { usePlan, useUpgradePrompt } from './plan';
 import { Alert } from './ui/alert';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
@@ -47,6 +49,8 @@ type FormValues = {
   nextActionNote: string;
   notes: string;
   jobDescription: string;
+  /** Id CV (string) atau '' = tanpa CV. */
+  cvId: string;
 };
 
 const NONE = '__none__';
@@ -81,6 +85,7 @@ function toFormValues(app: Application | null): FormValues {
     nextActionNote: app?.nextActionNote ?? '',
     notes: app?.notes ?? '',
     jobDescription: app?.jobDescription ?? '',
+    cvId: app?.cv ? String(app.cv.id) : '',
   };
 }
 
@@ -90,16 +95,32 @@ const resolver = zodResolver(applicationCreateSchema) as unknown as Resolver<For
 interface Props {
   open: boolean;
   application: Application | null;
+  /** Isi awal form Tambah lamaran (mis. dari loker yang dibagikan). */
+  prefill?: ApplicationPrefill;
   onOpenChange: (open: boolean) => void;
 }
 
-export function ApplicationFormDialog({ open, application, onOpenChange }: Props) {
+export interface ApplicationPrefill {
+  values?: Partial<Pick<FormValues, 'company' | 'position' | 'location' | 'workType' | 'jobUrl' | 'source' | 'notes' | 'jobDescription' | 'nextActionDate' | 'nextActionNote'>>;
+  /** Bahan untuk Isi otomatis AI (Premium): teks lowongan dan/atau gambar poster. */
+  aiText?: string;
+  aiImages?: File[];
+  /** Diisi otomatis agar panel AI dibuat ulang untuk setiap share. */
+  id?: number;
+}
+
+export function ApplicationFormDialog({ open, application, prefill, onOpenChange }: Props) {
   const isEdit = application !== null;
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [showMore, setShowMore] = useState(false);
   const createMutation = useCreateApplication();
   const updateMutation = useUpdateApplication();
+  const canCv = usePlan().has('attachments');
+  const [upgradeDialog, promptUpgrade] = useUpgradePrompt();
+  const cvs = useCvs(open && canCv);
+  /** Lamaran baru: CV utama dipilih otomatis sekali saat form dibuka. */
+  const cvDefaulted = useRef(false);
 
   const {
     register,
@@ -108,20 +129,33 @@ export function ApplicationFormDialog({ open, application, onOpenChange }: Props
     reset,
     setError,
     setValue,
+    getValues,
     formState: { errors, isDirty, isSubmitting },
   } = useForm<FormValues>({ resolver, defaultValues: toFormValues(null) });
 
   useEffect(() => {
     if (!open) return;
     reset(toFormValues(application));
+    cvDefaulted.current = false;
     setFormError(null);
+    const filled = Object.entries(application ? {} : (prefill?.values ?? {})).filter(([, v]) => v);
+    // Nilai dari loker yang dibagikan dianggap perubahan (form minta konfirmasi bila ditutup).
+    for (const [k, v] of filled) setValue(k as keyof FormValues, v as string, { shouldDirty: true });
     setShowMore(
-      !!application &&
-        !!(application.location || application.salaryMin || application.salaryMax || application.jobUrl ||
-          application.contactName || application.contactEmail || application.nextActionDate || application.notes ||
-          application.jobDescription),
+      filled.some(([k]) => EXTRA_FIELDS.includes(k as keyof FormValues)) ||
+        (!!application &&
+          !!(application.location || application.salaryMin || application.salaryMax || application.jobUrl ||
+            application.contactName || application.contactEmail || application.nextActionDate || application.notes ||
+            application.jobDescription)),
     );
-  }, [open, application, reset]);
+  }, [open, application, prefill, reset, setValue]);
+
+  useEffect(() => {
+    if (!open || isEdit || cvDefaulted.current || !cvs.data) return;
+    cvDefaulted.current = true;
+    const main = cvs.data.find((c) => c.isDefault && !c.archived);
+    if (main && !getValues('cvId')) reset({ ...getValues(), cvId: String(main.id) }, { keepDirty: true });
+  }, [open, isEdit, cvs.data, getValues, reset]);
 
   const requestClose = () => {
     if (isDirty && !isSubmitting) setConfirmDiscard(true);
@@ -144,6 +178,16 @@ export function ApplicationFormDialog({ open, application, onOpenChange }: Props
     set('jobDescription', d.jobDescription);
     set('contactName', d.contactName);
     set('contactEmail', d.contactEmail);
+    // Batas akhir melamar (dari poster) dijadikan agenda tindak lanjut agar muncul di pengingat.
+    if (d.deadline && d.deadline >= todayISO()) {
+      setValue('nextActionDate', d.deadline, opts);
+      setValue('nextActionNote', 'Batas akhir melamar', opts);
+    }
+    const notes = [
+      d.applyInstructions && `Cara melamar: ${d.applyInstructions}`,
+      d.contactPhone && `Kontak/WA: ${d.contactPhone}`,
+    ].filter(Boolean);
+    if (notes.length) set('notes', notes.join('\n'));
     setShowMore(true);
   };
 
@@ -154,6 +198,8 @@ export function ApplicationFormDialog({ open, application, onOpenChange }: Props
 
   const onSubmit = handleSubmit(async (values) => {
     const input = values as unknown as ApplicationCreate;
+    // Paket tanpa "CV Saya": CV lamaran tidak diubah dari form ini.
+    if (!canCv) delete (input as { cvId?: unknown }).cvId;
     setFormError(null);
     try {
       if (isEdit) {
@@ -182,6 +228,7 @@ export function ApplicationFormDialog({ open, application, onOpenChange }: Props
 
   return (
     <>
+      {upgradeDialog}
       <Dialog open={open} onOpenChange={(o) => (o ? onOpenChange(true) : requestClose())}>
         <DialogContent className="max-w-2xl" onEscapeKeyDown={(e) => { e.preventDefault(); requestClose(); }}>
           <DialogHeader>
@@ -194,7 +241,14 @@ export function ApplicationFormDialog({ open, application, onOpenChange }: Props
 
           <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
             {formError && <Alert variant="destructive">{formError}</Alert>}
-            {!isEdit && <AutoFillPanel onFill={applyExtract} />}
+            {!isEdit && (
+              <AutoFillPanel
+                key={prefill?.id ?? 'blank'}
+                onFill={applyExtract}
+                initialText={prefill?.aiText}
+                initialImages={prefill?.aiImages}
+              />
+            )}
 
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Perusahaan" required error={errors.company?.message}>
@@ -252,6 +306,53 @@ export function ApplicationFormDialog({ open, application, onOpenChange }: Props
               </Field>
               <Field label="Tindak lanjut berikutnya" error={errors.nextActionDate?.message}>
                 {(p) => <Input {...p} type="date" {...register('nextActionDate')} />}
+              </Field>
+              <Field label="CV yang dipakai" error={errors.cvId?.message} className="sm:col-span-2">
+                {(p) =>
+                  !canCv ? (
+                    <p className="flex items-center gap-2 rounded-xl border border-dashed px-3 py-2.5 text-sm text-muted-foreground">
+                      <Lock className="size-4 shrink-0" aria-hidden />
+                      <span>
+                        Simpan CV sekali lalu pilih per lamaran dengan paket Standar.{' '}
+                        <button
+                          type="button"
+                          onClick={() => promptUpgrade('attachments')}
+                          className="font-medium text-primary underline-offset-2 hover:underline"
+                        >
+                          Lihat paket
+                        </button>
+                      </span>
+                    </p>
+                  ) : (
+                    <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
+                      <Controller
+                        control={control}
+                        name="cvId"
+                        render={({ field }) => (
+                          <Select value={field.value || NONE} onValueChange={(v) => field.onChange(v === NONE ? '' : v)}>
+                            <SelectTrigger {...p} className="sm:flex-1">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value={NONE}>{cvs.data?.length ? 'Tanpa CV' : 'Belum ada CV tersimpan'}</SelectItem>
+                              {(cvs.data ?? [])
+                                .filter((c) => !c.archived || String(c.id) === field.value)
+                                .map((c) => (
+                                  <SelectItem key={c.id} value={String(c.id)}>
+                                    {c.label}
+                                    {c.archived ? ' (versi lama)' : c.isDefault ? ' (utama)' : ''}
+                                  </SelectItem>
+                                ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      />
+                      <Link to="/cv" className="text-sm font-medium text-primary underline-offset-2 hover:underline">
+                        {cvs.data?.length ? 'Kelola CV' : 'Unggah CV'}
+                      </Link>
+                    </div>
+                  )
+                }
               </Field>
             </div>
 
@@ -326,7 +427,7 @@ export function ApplicationFormDialog({ open, application, onOpenChange }: Props
                     <Textarea
                       {...p}
                       rows={6}
-                      placeholder="Tempel deskripsi & kualifikasi dari iklan lowongan — dipakai AI Career Assistant."
+                      placeholder="Tempel deskripsi & kualifikasi dari iklan lowongan. Dipakai oleh AI Career Assistant."
                       {...register('jobDescription')}
                     />
                   )}

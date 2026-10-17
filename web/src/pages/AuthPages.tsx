@@ -8,8 +8,8 @@ import {
   type ForgotPasswordInput,
   type LoginInput,
 } from '@wt/shared';
-import { KeyRound, Link as LinkIcon, Loader2, MailCheck, MessageCircle } from 'lucide-react';
-import { useEffect, useState, type ReactNode } from 'react';
+import { Eye, EyeOff, KeyRound, Link as LinkIcon, Loader2, MailCheck } from 'lucide-react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -23,10 +23,99 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ApiError, authApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { BUY_MESSAGE, whatsappLink } from '@/lib/config';
+import { usePaymentConfig } from '@/lib/payments';
+import { cn } from '@/lib/utils';
+import './landing.css';
 import { useUpdateProfile } from '@/lib/queries';
 
 
+const css = (v: Record<string, string | number>) => v as React.CSSProperties;
+
+/** Panel kanan (desktop): pesan utama + contoh agenda & lamaran yang melayang. */
+function AuthShowcase() {
+  return (
+    <aside aria-hidden className="lp-cta relative hidden flex-col justify-center overflow-hidden px-16 py-16 text-white lg:flex xl:px-24">
+      <h2 className="m-0 max-w-[36rem] text-[clamp(2.6rem,4.2vw,4rem)] font-extrabold leading-[1.02] tracking-[-0.045em]">
+        {'Lamaran boleh banyak. Asal tidak ada yang terlewat.'.split(' ').map((w, i) => (
+          <span key={i} className="lp-word" style={css({ '--i': i })}>
+            {w}{'\u00a0'}
+          </span>
+        ))}
+      </h2>
+      <div className="relative mt-14 h-[300px] max-w-[40rem]">
+        <div className="lp-fade-up absolute left-0 top-0 w-[min(25rem,70%)]" style={css({ '--d': '700ms' })}>
+          <div className="lp-float" style={css({ '--fd': '0.6s' })}>
+            <div className="-rotate-3 rounded-[18px] bg-white p-5 text-[#0f172a] shadow-[0_30px_60px_-30px_rgba(0,0,0,0.6)] transition-transform duration-500 hover:rotate-0">
+              <p className="m-0 text-xs font-bold text-[#64748b]">Agenda hari ini</p>
+              {[
+                ['Kirim portofolio ke Pasar Tani', 'Hari ini', ''],
+                ['Follow-up Lumbung Data', 'Terlewat 2 hari', 'text-[#b91c1c]'],
+                ['Batas melamar Rantai Logistik', 'Senin', ''],
+              ].map(([t, v, cls]) => (
+                <p key={t} className="mb-0 mt-2.5 flex justify-between gap-3 text-sm">
+                  <span>{t}</span>
+                  <span className={cn('shrink-0 font-bold', cls)}>{v}</span>
+                </p>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="lp-fade-up absolute right-0 top-[150px] w-[min(24rem,66%)]" style={css({ '--d': '900ms' })}>
+          <div className="lp-float" style={css({ '--fd': '0s' })}>
+            <div className="rotate-2 rounded-[18px] bg-white p-5 text-[#0f172a] shadow-[0_30px_60px_-30px_rgba(0,0,0,0.6)] transition-transform duration-500 hover:rotate-0">
+              <p className="m-0 text-sm font-semibold text-[#64748b]">Kedai Seduh Nusantara</p>
+              <p className="mt-0.5 text-[22px] font-extrabold tracking-[-0.02em]">Admin Marketplace</p>
+              <div className="mt-3 flex items-center justify-between gap-3">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-[#fde68a] bg-[#fffbeb] px-3 py-1 text-[13px] font-bold text-[#92400e]">
+                  <span className="lp-pulse size-[7px] rounded-full bg-[#f59e0b]" />
+                  Interview
+                </span>
+                <span className="flex gap-1">
+                  {[0, 1, 2, 3, 4].map((i) => (
+                    <span key={i} className={cn('lp-seg', i < 3 && 'is-on')} style={css({ '--i': i })} />
+                  ))}
+                </span>
+              </div>
+              <p className="mb-0 mt-3 text-[13px] text-[#475569]">Kamis, 22 Okt · 10.00 WIB</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+/**
+ * Perkecil kartu bila tidak muat di tinggi layar, supaya halaman masuk tidak perlu di-scroll.
+ * Ukuran asli kartu dibaca dari elemen dalam (tanpa transform).
+ */
+function useFitScale() {
+  const boxRef = useRef<HTMLElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+  useLayoutEffect(() => {
+    const box = boxRef.current;
+    const content = contentRef.current;
+    if (!box || !content) return;
+    const fit = () => {
+      const cs = getComputedStyle(box);
+      const avail = box.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+      const need = content.offsetHeight;
+      setScale(need > avail && avail > 0 ? Math.max(0.6, avail / need) : 1);
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(box);
+    ro.observe(content);
+    return () => ro.disconnect();
+  }, []);
+  return { boxRef, contentRef, scale };
+}
+
+/**
+ * Layout halaman masuk & akun: kartu di kiri (latar grid), panel gelap di kanan untuk desktop.
+ * Di HP dan tablet cukup kartunya saja, di tengah. Halaman tidak bisa di-scroll.
+ */
 function AuthLayout({
   title,
   subtitle,
@@ -35,29 +124,40 @@ function AuthLayout({
 }: {
   title: string;
   subtitle: string;
-  /** Tanpa ikon = logo WorksTracker. */
+  /** Ikon kecil di atas judul (halaman selain masuk). */
   icon?: typeof KeyRound;
   children: ReactNode;
 }) {
+  const { boxRef, contentRef, scale } = useFitScale();
   return (
-    <main className="flex min-h-dvh items-center justify-center px-4 py-10">
-      <div className="flex w-full max-w-sm flex-col gap-6">
-        <div className="flex flex-col items-center gap-3 text-center">
-          {Icon ? (
-            <span className="flex size-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-[0_10px_24px_-10px_rgba(61,90,241,0.8)]">
-              <Icon className="size-5" aria-hidden />
-            </span>
-          ) : (
-            <LogoMark className="size-12 drop-shadow-[0_10px_18px_rgba(29,78,216,0.35)]" />
-          )}
-          <div>
-            <h1 className="text-xl font-bold tracking-tight">{title}</h1>
-            <p className="text-sm text-muted-foreground">{subtitle}</p>
+    <div className="lp grid h-dvh overflow-hidden lg:grid-cols-2">
+      <div className="lp-sheet flex min-h-0 flex-col overflow-hidden px-4 py-4 sm:px-10 sm:py-6 lg:px-16 xl:px-[120px] [@media(max-height:860px)]:py-4" style={{ backgroundPosition: '0 0' }}>
+        <Link to="/" className="group flex w-fit items-center gap-2.5 text-[#0f172a] no-underline" aria-label="WorksTracker, ke beranda">
+          <LogoMark className="size-9 transition-transform duration-500 group-hover:-rotate-6 group-hover:scale-110" />
+          <span className="text-xl font-extrabold tracking-[-0.035em]">WorksTracker</span>
+        </Link>
+        <main ref={boxRef} className="flex min-h-0 flex-1 items-center justify-center py-4 sm:py-8 lg:justify-start [@media(max-height:860px)]:py-3">
+          <div
+            ref={contentRef}
+            className="w-full max-w-[34rem] origin-center lg:origin-left"
+            style={scale < 1 ? { transform: `scale(${scale})` } : undefined}
+          >
+          <div className="lp-fade-up rounded-[22px] border border-[#e2e8f0] bg-white p-5 shadow-[0_30px_60px_-40px_rgba(15,23,42,0.45)] sm:p-9 [@media(max-height:860px)]:sm:p-7" style={css({ '--d': '0ms' })}>
+            {Icon && (
+              <span className="mb-4 flex size-11 items-center justify-center rounded-xl bg-[#eff6ff] text-[#1d4ed8]">
+                <Icon className="size-5" aria-hidden />
+              </span>
+            )}
+            <h1 className="m-0 text-[clamp(1.75rem,3.2vw,2.35rem)] [@media(max-height:860px)]:text-[clamp(1.6rem,2.6vw,2rem)] font-extrabold leading-[1.1] tracking-[-0.035em]">{title}</h1>
+            <p className="mt-1.5 text-[15px] leading-relaxed text-[#475569] sm:mt-2">{subtitle}</p>
+            <div className="mt-5 sm:mt-6 [@media(max-height:860px)]:mt-4">{children}</div>
           </div>
-        </div>
-        <Card className="p-5 sm:p-6">{children}</Card>
+          </div>
+        </main>
+        <p className="m-0 text-xs text-[#64748b] sm:text-sm">© {new Date().getFullYear()} WorksTracker</p>
       </div>
-    </main>
+      <AuthShowcase />
+    </div>
   );
 }
 
@@ -106,6 +206,8 @@ export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const [serverError, setServerError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const online = !!usePaymentConfig().data?.enabled;
   const {
     register,
     handleSubmit,
@@ -128,48 +230,66 @@ export function LoginPage() {
   });
 
   return (
-    <AuthLayout title="Masuk ke WorksTracker" subtitle="Pantau semua lamaran kerja Anda di satu tempat">
-      <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
+    <AuthLayout title="Masuk ke WorksTracker" subtitle="Lanjutkan mencatat dan memantau lamaranmu.">
+      <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4 sm:gap-5 [@media(max-height:860px)]:sm:gap-4">
         {serverError && <Alert variant="destructive">{serverError}</Alert>}
         <FormField id="email" label="Email" error={errors.email?.message}>
-          <Input type="email" autoComplete="email" {...fieldA11y('email', errors.email?.message)} {...register('email')} />
+          <Input
+            type="email"
+            autoComplete="email"
+            placeholder="nama@email.com"
+            className="h-12 text-[15px] [@media(max-height:860px)]:h-11"
+            {...fieldA11y('email', errors.email?.message)}
+            {...register('email')}
+          />
         </FormField>
         <FormField
           id="password"
           label="Password"
           error={errors.password?.message}
           action={
-            <Link to="/lupa-password" className="text-xs font-semibold text-primary hover:underline">
+            <Link to="/lupa-password" className="text-sm font-semibold text-primary hover:underline">
               Lupa password?
             </Link>
           }
         >
-          <Input
-            type="password"
-            autoComplete="current-password"
-            {...fieldA11y('password', errors.password?.message)}
-            {...register('password')}
-          />
+          <div className="relative">
+            <Input
+              type={showPassword ? 'text' : 'password'}
+              autoComplete="current-password"
+              placeholder="Password"
+              className="h-12 pr-12 text-[15px] [@media(max-height:860px)]:h-11"
+              {...fieldA11y('password', errors.password?.message)}
+              {...register('password')}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              aria-label={showPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
+              aria-pressed={showPassword}
+              className="absolute right-2 top-1/2 flex size-9 -translate-y-1/2 items-center justify-center rounded-lg text-[#64748b] transition-colors hover:bg-[#f1f5f9] hover:text-[#0f172a]"
+            >
+              {showPassword ? <EyeOff className="size-5" aria-hidden /> : <Eye className="size-5" aria-hidden />}
+            </button>
+          </div>
         </FormField>
-        <Button type="submit" loading={isSubmitting} className="mt-1">
+        <button type="submit" disabled={isSubmitting} className="lp-btn lp-btn-primary w-full">
+          {isSubmitting && <Loader2 className="size-4 animate-spin" aria-hidden />}
           {isSubmitting ? 'Memproses…' : 'Masuk'}
-        </Button>
-        <div className="rounded-xl bg-muted p-3 text-center text-xs leading-relaxed text-muted-foreground">
-          Belum punya akun? Akses WorksTracker dibeli sekali untuk seumur hidup — akun dibuatkan oleh admin.
-          <a
-            href={whatsappLink(BUY_MESSAGE)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-2 flex items-center justify-center gap-1.5 font-semibold text-primary"
-          >
-            <MessageCircle className="size-4" aria-hidden />
-            Beli akses via WhatsApp
-          </a>
+        </button>
+        <div className="flex items-center gap-3 text-sm text-[#64748b]" aria-hidden>
+          <span className="h-px flex-1 bg-[#e2e8f0]" />
+          atau
+          <span className="h-px flex-1 bg-[#e2e8f0]" />
         </div>
-        <TryDemoButton label="Coba demo gratis tanpa daftar" />
-        <Link to="/" className="text-center text-xs font-medium text-muted-foreground hover:text-foreground">
-          ← Kembali ke beranda
-        </Link>
+        <TryDemoButton label="Coba demo gratis tanpa daftar" className="h-[52px] w-full rounded-xl text-[15px] font-bold [@media(max-height:860px)]:h-12" />
+        <p className="m-0 text-[15px] leading-relaxed text-[#475569]">
+          Belum punya akun?{' '}
+          {online ? 'Beli paket dan akunmu langsung aktif setelah pembayaran.' : 'Akun dibuat oleh admin setelah pembelian.'}{' '}
+          <a href="/#harga" className="font-bold text-primary hover:underline">
+            Lihat paket
+          </a>
+        </p>
       </form>
     </AuthLayout>
   );
@@ -265,6 +385,8 @@ type ResetFormValues = z.infer<typeof resetFormSchema>;
 export function ResetPasswordPage() {
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token') ?? '';
+  // Link dari email pembelian otomatis: akun baru membuat password pertamanya.
+  const isNew = searchParams.get('baru') === '1';
   const navigate = useNavigate();
   const { state, logout } = useAuth();
   const [linkState, setLinkState] = useState<'checking' | 'valid' | 'invalid'>('checking');
@@ -299,7 +421,7 @@ export function ResetPasswordPage() {
       await authApi.resetPassword({ token, newPassword });
       // Semua sesi dicabut di server; pastikan tab ini juga keluar.
       if (state.status === 'authenticated') await logout().catch(() => undefined);
-      toast.success('Password berhasil diubah. Silakan masuk dengan password baru.');
+      toast.success(isNew ? 'Password dibuat. Silakan masuk ke akun baru Anda.' : 'Password berhasil diubah. Silakan masuk dengan password baru.');
       navigate('/login', { replace: true });
     } catch (e) {
       if (e instanceof ApiError && e.fields?.token) setLinkState('invalid');
@@ -327,8 +449,9 @@ export function ResetPasswordPage() {
       >
         <div className="flex flex-col gap-4 text-sm">
           <p className="leading-relaxed text-muted-foreground">
-            Demi keamanan, link hanya berlaku 30 menit dan sekali pakai. Jika Anda meminta link lebih dari sekali, gunakan
-            link dari email terbaru.
+            {isNew
+              ? 'Link membuat password berlaku 72 jam dan sekali pakai. Minta link baru dengan email yang dipakai saat membeli.'
+              : 'Demi keamanan, link hanya berlaku 30 menit dan sekali pakai. Jika Anda meminta link lebih dari sekali, gunakan link dari email terbaru.'}
           </p>
           <Button asChild>
             <Link to="/lupa-password">Minta link baru</Link>
@@ -342,7 +465,11 @@ export function ResetPasswordPage() {
   }
 
   return (
-    <AuthLayout icon={KeyRound} title="Buat password baru" subtitle="Setelah disimpan, semua perangkat akan dikeluarkan.">
+    <AuthLayout
+      icon={KeyRound}
+      title={isNew ? 'Buat password akun Anda' : 'Buat password baru'}
+      subtitle={isNew ? 'Satu langkah lagi sebelum mulai memakai WorksTracker.' : 'Setelah disimpan, semua perangkat akan dikeluarkan.'}
+    >
       <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
         {serverError && <Alert variant="destructive">{serverError}</Alert>}
         <FormField id="newPassword" label="Password baru" error={errors.newPassword?.message}>
@@ -364,7 +491,7 @@ export function ResetPasswordPage() {
           />
         </FormField>
         <Button type="submit" loading={isSubmitting} className="mt-1">
-          {isSubmitting ? 'Menyimpan…' : 'Simpan password baru'}
+          {isSubmitting ? 'Menyimpan…' : isNew ? 'Simpan & lanjut masuk' : 'Simpan password baru'}
         </Button>
       </form>
     </AuthLayout>

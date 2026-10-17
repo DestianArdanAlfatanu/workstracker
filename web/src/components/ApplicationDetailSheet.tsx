@@ -1,13 +1,15 @@
 import { SOURCE_LABELS, STATUS_LABELS, WORK_TYPE_LABELS, type ApplicationDetail } from '@wt/shared';
-import { ExternalLink, ListTodo, Pencil, Sparkles, Trash2 } from 'lucide-react';
+import { Download, ExternalLink, FileText, ListTodo, Pencil, Sparkles, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { AiAssistantDialog } from './ai/AiAssistantDialog';
 import type { ReactNode } from 'react';
 import { formatDate, formatDateTime, formatSalaryRange } from '@/lib/format';
-import { useApplication, useTasks } from '@/lib/queries';
-import { AttachmentsSection } from './attachments';
+import { downloadCv, useApplication, useTasks } from '@/lib/queries';
+import { Link } from 'react-router-dom';
+import { toast } from 'sonner';
 import { QuickAddTask, TaskItem } from './tasks';
 import { useApplicationUI } from './application-ui';
+import { usePlan } from './plan';
 import { DueBadge, STATUS_STYLE, StatusSelect } from './status';
 import { Alert } from './ui/alert';
 import { Button } from './ui/button';
@@ -45,6 +47,9 @@ export function ApplicationDetailSheet({ id, onClose }: { id: number | null; onC
 function DetailBody({ app }: { app: ApplicationDetail }) {
   const ui = useApplicationUI();
   const [aiOpen, setAiOpen] = useState(false);
+  const plan = usePlan();
+  const canTasks = plan.has('tasks');
+  const canCv = plan.has('attachments');
   return (
     <>
       <AiAssistantDialog app={app} open={aiOpen} onOpenChange={setAiOpen} />
@@ -64,7 +69,7 @@ function DetailBody({ app }: { app: ApplicationDetail }) {
         </div>
         <Button
           onClick={() => setAiOpen(true)}
-          className="bg-gradient-to-r from-[#5470ff] to-[#7b5cf5] text-white hover:opacity-95"
+          className="bg-[#0f172a] text-white hover:bg-[#1e293b]"
         >
           <Sparkles />
           AI Assistant: cover letter & persiapan interview
@@ -75,8 +80,8 @@ function DetailBody({ app }: { app: ApplicationDetail }) {
         <dl className="grid grid-cols-[minmax(0,8.5rem)_1fr] gap-x-3 gap-y-2.5 text-sm">
           <Row label="Tanggal lamar">{formatDate(app.appliedAt)}</Row>
           <Row label="Sumber">{SOURCE_LABELS[app.source]}</Row>
-          <Row label="Lokasi">{app.location ?? '—'}</Row>
-          <Row label="Tipe kerja">{app.workType ? WORK_TYPE_LABELS[app.workType] : '—'}</Row>
+          <Row label="Lokasi">{app.location ?? '-'}</Row>
+          <Row label="Tipe kerja">{app.workType ? WORK_TYPE_LABELS[app.workType] : '-'}</Row>
           <Row label="Gaji">{formatSalaryRange(app.salaryMin, app.salaryMax)}</Row>
           <Row label="Lowongan">
             {app.jobUrl ? (
@@ -91,7 +96,7 @@ function DetailBody({ app }: { app: ApplicationDetail }) {
                 <span className="sr-only">(tab baru)</span>
               </a>
             ) : (
-              '—'
+              '-'
             )}
           </Row>
           <Row label="Kontak HR">
@@ -105,7 +110,7 @@ function DetailBody({ app }: { app: ApplicationDetail }) {
                 )}
               </span>
             ) : (
-              '—'
+              '-'
             )}
           </Row>
           <Row label="Tindak lanjut">
@@ -115,7 +120,42 @@ function DetailBody({ app }: { app: ApplicationDetail }) {
                 {app.nextActionNote && <span className="text-muted-foreground">{app.nextActionNote}</span>}
               </span>
             ) : (
-              '—'
+              '-'
+            )}
+          </Row>
+          <Row label="CV dipakai">
+            {!canCv ? (
+              <span className="text-muted-foreground">Fitur CV Saya ada di paket Standar</span>
+            ) : app.cv ? (
+              <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <FileText className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                <span className="font-medium">{app.cv.label}</span>
+                {app.cv.archived && (
+                  <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">versi lama</span>
+                )}
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 text-primary underline-offset-2 hover:underline"
+                  onClick={() => app.cv && downloadCv(app.cv).catch(() => toast.error('Gagal mengunduh CV'))}
+                >
+                  <Download className="size-3.5" aria-hidden />
+                  Unduh
+                </button>
+                <button type="button" className="text-primary underline-offset-2 hover:underline" onClick={() => ui.openEdit(app)}>
+                  Ganti
+                </button>
+              </span>
+            ) : (
+              <span className="text-muted-foreground">
+                Belum dipilih.{' '}
+                <button type="button" className="text-primary underline-offset-2 hover:underline" onClick={() => ui.openEdit(app)}>
+                  Pilih CV
+                </button>{' '}
+                atau{' '}
+                <Link to="/cv" className="text-primary underline-offset-2 hover:underline">
+                  kelola CV Saya
+                </Link>
+              </span>
             )}
           </Row>
         </dl>
@@ -134,11 +174,8 @@ function DetailBody({ app }: { app: ApplicationDetail }) {
           </section>
         )}
 
-        <div className="mt-6">
-          <AttachmentsSection applicationId={app.id} items={app.attachments} />
-        </div>
 
-        <ApplicationTasks applicationId={app.id} />
+        {canTasks && <ApplicationTasks applicationId={app.id} />}
 
         <section className="mt-6">
           <h3 className="mb-3 text-sm font-semibold">Riwayat status</h3>

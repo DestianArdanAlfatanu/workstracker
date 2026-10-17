@@ -49,13 +49,13 @@ function drawCard(canvas: HTMLCanvasElement, d: CardData, format: Format, logo: 
 
   // Latar
   const bg = ctx.createLinearGradient(0, 0, w, h);
-  bg.addColorStop(0, '#14162b');
-  bg.addColorStop(1, '#202a6b');
+  bg.addColorStop(0, '#0f172a');
+  bg.addColorStop(1, '#1e3a8a');
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, w, h);
   const glow = ctx.createRadialGradient(w * 0.85, h * 0.1, 0, w * 0.85, h * 0.1, w * 0.7);
-  glow.addColorStop(0, 'rgba(84,112,255,0.55)');
-  glow.addColorStop(1, 'rgba(84,112,255,0)');
+  glow.addColorStop(0, 'rgba(37,99,235,0.55)');
+  glow.addColorStop(1, 'rgba(37,99,235,0)');
   ctx.fillStyle = glow;
   ctx.fillRect(0, 0, w, h);
 
@@ -72,7 +72,7 @@ function drawCard(canvas: HTMLCanvasElement, d: CardData, format: Format, logo: 
   ctx.fillText(`Progres pencarian kerja · ${monthYear.format(new Date())}`, pad, top - 100 * s);
   ctx.fillStyle = '#fff';
   ctx.font = `800 ${70 * s + 6}px ${FONT}`;
-  ctx.fillText(d.name ? `Perjalanan karier ${d.name}` : 'Perjalanan karierku', pad, top);
+  ctx.fillText(d.name ? `Rekap lamaran ${d.name}` : 'Rekap lamaranku', pad, top);
 
   // Angka utama
   if (format === 'story') {
@@ -80,7 +80,7 @@ function drawCard(canvas: HTMLCanvasElement, d: CardData, format: Format, logo: 
     ctx.fillStyle = '#ffffff';
     ctx.fillText(num.format(d.total), pad - 6, 600);
     ctx.font = `600 44px ${FONT}`;
-    ctx.fillStyle = '#93a3f5';
+    ctx.fillStyle = '#93c5fd';
     ctx.fillText('lamaran dikirim', pad, 670);
   }
 

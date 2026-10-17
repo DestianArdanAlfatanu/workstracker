@@ -1,3 +1,4 @@
+import { hasFeature } from '@wt/shared';
 import { AppError } from '../lib/http';
 import type { CookieOptions, Request, Response } from 'express';
 import { env, REFRESH_COOKIE, REFRESH_COOKIE_PATH } from '../lib/env';
@@ -37,6 +38,12 @@ export async function refresh(req: Request, res: Response) {
   }
 }
 
+/** Chrome Extension: access token dari sesi website (cookie tidak dirotasi / tidak diubah). */
+export async function extensionSession(req: Request, res: Response) {
+  const { user, accessToken } = await auth.extensionSession(readRefreshCookie(req));
+  res.json({ data: { accessToken, user: serializeUser(user) } });
+}
+
 export async function logout(req: Request, res: Response) {
   await auth.logout(readRefreshCookie(req));
   res.clearCookie(REFRESH_COOKIE, cookieBase);
@@ -56,6 +63,10 @@ export async function updateMe(req: Request, res: Response) {
 }
 
 export async function updatePreferences(req: Request, res: Response) {
+  // Email pengingat termasuk paket Standar; mematikannya selalu boleh.
+  if (req.body.emailReminders === true && !hasFeature(req.userPlan ?? 'basic', req.userRole ?? 'user', 'reminders')) {
+    throw new AppError('PLAN_REQUIRED', 'Email pengingat tersedia mulai paket Standar.', undefined, { requiredPlan: 'standard' });
+  }
   const user = await prisma.user.update({ where: { id: currentUserId(req) }, data: req.body });
   res.json({ data: serializeUser(user) });
 }

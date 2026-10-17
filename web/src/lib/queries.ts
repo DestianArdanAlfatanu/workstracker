@@ -3,7 +3,9 @@ import type {
   AtsCheckOptionsInput,
   Insights,
   JobExtract,
-  AdminAiInput,
+  AdminCreditsInput,
+  AdminPlanInput,
+  Purchase,
   AiGeneration,
   AiGenerationUpdateInput,
   AiUsage,
@@ -12,11 +14,17 @@ import type {
   InterviewPrepOptionsInput,
   Announcement,
   AnnouncementInput,
-  Attachment,
+  CareerProfileDraft,
+  CvDocument,
+  CvUpdateInput,
   BulkActionInput,
   BulkResult,
   CalendarEvent,
+  ImportCommitInput,
+  ImportCommitResult,
+  ImportParseResult,
   PreferencesInput,
+  ShareResolveResult,
   Task,
   TaskCreateInput,
   TaskUpdateInput,
@@ -237,6 +245,89 @@ export function useBulkAction() {
   });
 }
 
+/* ------------------------ Share Target & push (PWA) ------------------------ */
+
+/** Lamaran dengan link yang sama (cek duplikat sebelum menyimpan loker yang dibagikan). */
+export function useJobLookup(url: string | null) {
+  return useQuery({
+    queryKey: ['applications', 'lookup', url],
+    queryFn: async () =>
+      (await api<{ id: number; company: string; position: string; status: Status } | null>('/applications/lookup', { query: { url: url! } })).data,
+    enabled: !!url && url.length >= 8,
+    staleTime: 0,
+  });
+}
+
+/** Baca judul/info lowongan dari halaman portal loker yang dikenal (tanpa AI). */
+export function useShareResolve(url: string | null, enabled: boolean) {
+  return useQuery({
+    queryKey: ['share', 'resolve', url],
+    queryFn: async () => (await api<ShareResolveResult>('/share/resolve', { method: 'POST', body: { url } })).data,
+    enabled: enabled && !!url,
+    staleTime: Infinity,
+    retry: false,
+  });
+}
+
+export interface PushInfo {
+  publicKey: string | null;
+  configured: boolean;
+  devices: number;
+}
+
+const pushKey = ['push', 'key'] as const;
+
+export function usePushInfo(enabled = true) {
+  return useQuery({ queryKey: pushKey, queryFn: async () => (await api<PushInfo>('/push/key')).data, enabled });
+}
+
+export function useSavePushSubscription() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (sub: PushSubscriptionJSON) =>
+      (await api<{ devices: number }>('/push/subscriptions', { method: 'POST', body: sub })).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: pushKey }),
+  });
+}
+
+export function useDeletePushSubscription() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (endpoint: string) => {
+      await api('/push/subscriptions', { method: 'DELETE', body: { endpoint } });
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: pushKey }),
+  });
+}
+
+export function useTestPush() {
+  return useMutation({
+    mutationFn: async () => (await api<{ delivered: number }>('/push/test', { method: 'POST' })).data,
+  });
+}
+
+/* -------------------------------- Impor -------------------------------- */
+
+/** Baca file XLSX/CSV di server (tanpa disimpan) → judul kolom, baris, dan tebakan pemetaan. */
+export async function parseImportFile(file: File) {
+  const form = new FormData();
+  form.append('file', file);
+  return (await api<ImportParseResult>('/applications/import/parse', { method: 'POST', body: form })).data;
+}
+
+/** Kirim satu batch impor (atau cek saja dengan `dryRun`). */
+export async function commitImport(input: ImportCommitInput) {
+  return (await api<ImportCommitResult>('/applications/import', { method: 'POST', body: input })).data;
+}
+
+export const downloadImportTemplate = () =>
+  downloadFile('/applications/import/template', undefined, 'template-impor-workstracker.xlsx');
+
+/** Segarkan daftar lamaran, statistik, dll. setelah impor selesai. */
+export function useRefreshWork() {
+  return useInvalidateWork();
+}
+
 export function exportApplications(params: Omit<ListParams, 'page' | 'limit'> & { format: 'csv' | 'xlsx'; ids?: number[] }) {
   const { ids, ...rest } = params;
   return downloadFile('/applications/export', { ...rest, ids: ids?.map(String) }, `lamaran.${params.format}`);
@@ -284,30 +375,69 @@ export function useCalendar(from: string, to: string) {
   });
 }
 
-export function useUploadAttachment() {
-  const invalidate = useInvalidateWork();
+/* ------------------------------ CV Saya ------------------------------ */
+
+const cvKeys = { all: ['cvs'] as const };
+
+/** CV aktif + CV arsip yang masih dipakai lamaran. `enabled` false untuk paket tanpa fitur CV. */
+export function useCvs(enabled = true) {
+  return useQuery({
+    queryKey: cvKeys.all,
+    queryFn: async () => (await api<CvDocument[]>('/cvs')).data,
+    enabled,
+  });
+}
+
+/** Setelah CV berubah: segarkan daftar CV & lamaran (label/arsip ikut tampil di lamaran). */
+function useInvalidateCvs() {
+  const qc = useQueryClient();
+  const invalidateWork = useInvalidateWork();
+  return () => Promise.all([qc.invalidateQueries({ queryKey: cvKeys.all }), invalidateWork()]);
+}
+
+export function useUploadCv() {
+  const invalidate = useInvalidateCvs();
   return useMutation({
-    mutationFn: async ({ applicationId, file }: { applicationId: number; file: File }) => {
+    mutationFn: async ({ file, label }: { file: File; label: string }) => {
+      const form = new FormData();
+      form.append('label', label);
+      form.append('file', file);
+      return (await api<CvDocument>('/cvs', { method: 'POST', body: form })).data;
+    },
+    onSuccess: invalidate,
+  });
+}
+
+export function useUpdateCv() {
+  const invalidate = useInvalidateCvs();
+  return useMutation({
+    mutationFn: async ({ id, input }: { id: number; input: CvUpdateInput }) =>
+      (await api<CvDocument>(`/cvs/${id}`, { method: 'PATCH', body: input })).data,
+    onSuccess: invalidate,
+  });
+}
+
+export function useReplaceCv() {
+  const invalidate = useInvalidateCvs();
+  return useMutation({
+    mutationFn: async ({ id, file }: { id: number; file: File }) => {
       const form = new FormData();
       form.append('file', file);
-      return (await api<Attachment>(`/applications/${applicationId}/attachments`, { method: 'POST', body: form })).data;
+      return (await api<CvDocument>(`/cvs/${id}/replace`, { method: 'POST', body: form })).data;
     },
     onSuccess: invalidate,
   });
 }
 
-export function useDeleteAttachment() {
-  const invalidate = useInvalidateWork();
+export function useDeleteCv() {
+  const invalidate = useInvalidateCvs();
   return useMutation({
-    mutationFn: async (id: number) => {
-      await api(`/attachments/${id}`, { method: 'DELETE' });
-    },
+    mutationFn: async (id: number) => (await api<{ archived: boolean }>(`/cvs/${id}`, { method: 'DELETE' })).data,
     onSuccess: invalidate,
   });
 }
 
-export const downloadAttachment = (a: Pick<Attachment, 'id' | 'originalName'>) =>
-  downloadFile(`/attachments/${a.id}/download`, undefined, a.originalName);
+export const downloadCv = (cv: { id: number; label: string }) => downloadFile(`/cvs/${cv.id}/download`, undefined, cv.label);
 
 export function useUpdatePreferences() {
   const qc = useQueryClient();
@@ -391,6 +521,16 @@ export function useCareerProfile() {
   });
 }
 
+/** AI: isi Profil Karier dari CV (draf, belum disimpan). */
+export function useProfileFromCv() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (cvId: number) =>
+      (await api<CareerProfileDraft>('/ai/profile-from-cv', { method: 'POST', body: { cvId } })).data,
+    onSettled: () => qc.invalidateQueries({ queryKey: aiKeys.usage }),
+  });
+}
+
 export function useSaveCareerProfile() {
   const qc = useQueryClient();
   return useMutation({
@@ -400,10 +540,11 @@ export function useSaveCareerProfile() {
   });
 }
 
-export function useAiUsage() {
+export function useAiUsage(enabled = true) {
   return useQuery({
     queryKey: aiKeys.usage,
     queryFn: async () => (await api<AiUsage>('/me/ai-usage')).data,
+    enabled,
   });
 }
 
@@ -462,10 +603,23 @@ export function useCreatePracticeTasks() {
   });
 }
 
-export const useSetBuyerAi = () =>
-  useAdminMutation(async ({ id, input }: { id: number; input: AdminAiInput }) =>
-    (await api<AdminUser>(`/admin/users/${id}/ai`, { method: 'PATCH', body: input })).data,
+export const useSetBuyerPlan = () =>
+  useAdminMutation(async ({ id, input }: { id: number; input: AdminPlanInput }) =>
+    (await api<AdminUser>(`/admin/users/${id}/plan`, { method: 'PATCH', body: input })).data,
   );
+
+export const useAddBuyerCredits = () =>
+  useAdminMutation(async ({ id, input }: { id: number; input: AdminCreditsInput }) =>
+    (await api<AdminUser>(`/admin/users/${id}/credits`, { method: 'POST', body: input })).data,
+  );
+
+export function useBuyerPurchases(id: number | null) {
+  return useQuery({
+    queryKey: [...adminKeys.all, 'purchases', id],
+    queryFn: async () => (await api<Purchase[]>(`/admin/users/${id}/purchases`)).data,
+    enabled: id != null,
+  });
+}
 /* ---------------------- Insight, ATS, isi otomatis ---------------------- */
 
 export function useInsights(period: Insights['period']) {
@@ -488,7 +642,14 @@ export function useAtsCheck() {
 export function useExtractJob() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (text: string) => (await api<JobExtract>('/ai/extract-job', { method: 'POST', body: { text } })).data,
+    /** Teks lowongan dan/atau gambar poster (multipart). */
+    mutationFn: async ({ text, images = [] }: { text?: string; images?: Blob[] }) => {
+      if (images.length === 0) return (await api<JobExtract>('/ai/extract-job', { method: 'POST', body: { text } })).data;
+      const form = new FormData();
+      if (text) form.append('text', text);
+      images.forEach((img, i) => form.append('images', img, `poster-${i + 1}.${img.type.split('/')[1] ?? 'jpg'}`));
+      return (await api<JobExtract>('/ai/extract-job', { method: 'POST', body: form })).data;
+    },
     onSettled: () => qc.invalidateQueries({ queryKey: ['ai', 'usage'] }),
   });
 }

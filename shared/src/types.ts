@@ -1,4 +1,5 @@
 import type { Source, Status, WorkType } from './enums';
+import type { Plan } from './plans';
 
 export type UserRole = 'user' | 'admin';
 export type UserStatus = 'active' | 'suspended';
@@ -11,7 +12,9 @@ export interface User {
   mustChangePassword: boolean;
   emailReminders: boolean;
   weeklyGoal: number | null;
-  aiEnabled: boolean;
+  plan: Plan;
+  /** Saldo kredit AI. */
+  aiCredits: number;
   isDemo: boolean;
   demoExpiresAt: string | null;
   createdAt: string;
@@ -36,9 +39,21 @@ export interface AdminUser {
   createdAt: string;
   applicationCount: number;
   license: LicenseInfo | null;
-  aiEnabled: boolean;
-  aiMonthlyLimit: number;
-  aiUsedThisMonth: number;
+  plan: Plan;
+  aiCredits: number;
+  /** Kredit terpakai bulan ini. */
+  aiCreditsUsedThisMonth: number;
+}
+
+export interface Purchase {
+  id: number;
+  kind: 'upgrade' | 'topup';
+  plan: Plan | null;
+  credits: number | null;
+  price: number;
+  paidAt: string;
+  notes: string | null;
+  createdAt: string;
 }
 
 export interface AdminCredentials {
@@ -58,6 +73,12 @@ export interface AdminOverview {
   demosThisMonth: number;
   /** Estimasi biaya API AI bulan ini (USD). */
   aiCostThisMonthUsd: number;
+  /** Kredit terpakai bulan ini (pengguna non-demo). */
+  aiCreditsUsedThisMonth: number;
+  /** Biaya rata-rata per kredit bulan ini (rupiah, termasuk PPN); null jika belum ada pemakaian. */
+  aiCostPerCreditIdr: number | null;
+  /** Jumlah pembeli aktif per paket. */
+  byPlan: Record<Plan, number>;
   /** 12 bulan terakhir, urut dari terlama. */
   monthly: Array<{ month: string; sales: number; revenue: number }>;
 }
@@ -87,13 +108,37 @@ export interface Application {
   nextActionNote: string | null;
   notes: string | null;
   jobDescription: string | null;
+  /** CV dari "CV Saya" yang dipakai (null = tanpa CV). */
+  cv: CvSummary | null;
   createdAt: string;
   updatedAt: string;
 }
 
+export interface CvSummary {
+  id: number;
+  label: string;
+  archived: boolean;
+}
+
 export interface ApplicationDetail extends Application {
   history: StatusHistoryEntry[];
-  attachments: Attachment[];
+}
+
+/** CV di "CV Saya". */
+export interface CvDocument {
+  id: number;
+  label: string;
+  originalName: string;
+  mimeType: string;
+  size: number;
+  /** Teks terbaca saat diunggah (AI membaca teks); false = CV hasil scan (AI membaca file PDF). */
+  hasText: boolean;
+  pageCount: number | null;
+  isDefault: boolean;
+  archived: boolean;
+  /** Jumlah lamaran (belum dihapus) yang memakai CV ini. */
+  usedBy: number;
+  createdAt: string;
 }
 
 /** Perbandingan bulan berjalan vs bulan lalu. */
@@ -176,15 +221,6 @@ export interface Task {
   createdAt: string;
 }
 
-export interface Attachment {
-  id: number;
-  applicationId: number;
-  originalName: string;
-  mimeType: string;
-  size: number;
-  createdAt: string;
-}
-
 export type CalendarEventType = 'applied' | 'next_action' | 'task';
 
 export interface CalendarEvent {
@@ -230,10 +266,14 @@ export interface CareerProfile {
 }
 
 export interface AiUsage {
+  /** Paket Premium (atau admin): fitur AI terbuka. */
   enabled: boolean;
-  limit: number;
-  usedThisMonth: number;
-  /** Persetujuan pengiriman data ke penyedia AI dicatat di browser; info untuk UI. */
+  plan: Plan;
+  /** Saldo kredit. */
+  balance: number;
+  /** Admin: kredit tidak dipotong. */
+  unlimited: boolean;
+  costs: Record<AiGenerationKind, number>;
   model: string;
 }
 
@@ -253,7 +293,7 @@ export interface InterviewPrep {
   finalTips: string[];
 }
 
-export type AiGenerationKind = 'cover_letter' | 'interview_prep' | 'ats_check' | 'job_extract';
+export type AiGenerationKind = 'cover_letter' | 'interview_prep' | 'ats_check' | 'job_extract' | 'profile_extract';
 
 export interface AiGeneration {
   id: number;
@@ -298,6 +338,13 @@ export interface JobExtract {
   jobDescription: string | null;
   contactName: string | null;
   contactEmail: string | null;
+  contactPhone: string | null;
+  /** Batas akhir melamar (YYYY-MM-DD) jika tertulis. */
+  deadline: string | null;
+  /** Cara melamar (mis. "Kirim CV ke email … dengan subjek …"). */
+  applyInstructions: string | null;
+  /** Transkrip tulisan pada poster (hanya jika input berupa gambar). */
+  posterText: string | null;
 }
 
 export interface Insight {
@@ -316,4 +363,14 @@ export interface Insights {
   medianDaysToInterview: number | null;
   stale: number;
   insights: Insight[];
+}
+/** Draf Profil Karier hasil baca CV oleh AI (belum disimpan). */
+export interface CareerProfileDraft {
+  headline: string | null;
+  summary: string | null;
+  skills: string | null;
+  experience: string | null;
+  education: string | null;
+  achievements: string | null;
+  city: string | null;
 }

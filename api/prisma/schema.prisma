@@ -23,7 +23,13 @@ enum ApplicationSource {
   jobstreet
   glints
   kalibrr
+  dealls
+  kitalulus
+  loker_id
+  indeed
+  karirhub
   company_site
+  instagram
   referral
   other
 }
@@ -44,6 +50,13 @@ enum UserStatus {
   suspended
 }
 
+/// Paket akses seumur hidup. Aturan fitur per paket ada di shared/src/plans.ts.
+enum Plan {
+  basic
+  standard
+  premium
+}
+
 model User {
   id                 BigInt         @id @default(autoincrement()) @db.UnsignedBigInt
   name               String         @db.VarChar(100)
@@ -56,8 +69,11 @@ model User {
   emailReminders     Boolean        @default(true) @map("email_reminders")
   weeklyGoal         Int?           @map("weekly_goal") @db.UnsignedSmallInt
   lastReminderOn     DateTime?      @map("last_reminder_on") @db.Date
-  aiEnabled          Boolean        @default(false) @map("ai_enabled")
-  aiMonthlyLimit     Int            @default(30) @map("ai_monthly_limit") @db.UnsignedSmallInt
+  /// Tanggal terakhir pengingat harian dikirim lewat push (terpisah dari email).
+  lastPushOn         DateTime?      @map("last_push_on") @db.Date
+  plan               Plan           @default(basic)
+  /// Saldo kredit AI (paket Premium + isi ulang). Riwayat lengkap di ai_credit_ledger.
+  aiCredits          Int            @default(0) @map("ai_credits") @db.UnsignedInt
   isDemo             Boolean        @default(false) @map("is_demo")
   demoExpiresAt      DateTime?      @map("demo_expires_at") @db.DateTime(0)
   createdAt          DateTime       @default(now()) @map("created_at") @db.DateTime(0)
@@ -67,12 +83,17 @@ model User {
   license            License?       @relation("LicenseOwner")
   licensesCreated    License[]      @relation("LicenseCreator")
   tasks              Task[]
-  attachments        Attachment[]
+  cvDocuments        CvDocument[]
   announcements      Announcement[]
   announcementReads  AnnouncementRead[]
   careerProfile      CareerProfile?
   aiGenerations      AiGeneration[]
   passwordResets     PasswordResetToken[]
+  creditLedger       AiCreditLedger[]   @relation("CreditOwner")
+  purchases          Purchase[]         @relation("PurchaseOwner")
+  purchasesCreated   Purchase[]         @relation("PurchaseCreator")
+  pushSubscriptions  PushSubscription[]
+  paymentOrders      PaymentOrder[]
 
   @@index([isDemo, demoExpiresAt])
   @@map("users")
@@ -87,6 +108,8 @@ model License {
   price       Int?     @db.UnsignedInt
   notes       String?  @db.Text
   createdById BigInt?  @map("created_by") @db.UnsignedBigInt
+  /// Pesanan Midtrans pembelian pertama (null = dibuat admin).
+  paymentOrderId BigInt? @unique @map("payment_order_id") @db.UnsignedBigInt
   createdAt   DateTime @default(now()) @map("created_at") @db.DateTime(0)
   updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(0)
   user        User     @relation("LicenseOwner", fields: [userId], references: [id], onDelete: Cascade)
@@ -94,6 +117,24 @@ model License {
 
   @@index([purchasedAt])
   @@map("licenses")
+}
+
+/// Langganan push notification per perangkat/browser (Web Push, kunci VAPID).
+model PushSubscription {
+  id           BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  userId       BigInt    @map("user_id") @db.UnsignedBigInt
+  /// SHA-256 dari endpoint (endpoint bisa sangat panjang, jadi yang unik hash-nya).
+  endpointHash String    @unique @map("endpoint_hash") @db.Char(64)
+  endpoint     String    @db.Text
+  p256dh       String    @db.VarChar(255)
+  auth         String    @db.VarChar(100)
+  userAgent    String?   @map("user_agent") @db.VarChar(255)
+  lastSentAt   DateTime? @map("last_sent_at") @db.DateTime(0)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.DateTime(0)
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("push_subscriptions")
 }
 
 model RefreshToken {
@@ -134,8 +175,9 @@ model Application {
   user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   history        StatusHistory[]
   tasks          Task[]
-  attachments    Attachment[]
   aiGenerations  AiGeneration[]
+  cvId           BigInt?           @map("cv_id") @db.UnsignedBigInt
+  cv             CvDocument?       @relation(fields: [cvId], references: [id], onDelete: SetNull)
 
   @@index([userId, status, deletedAt], map: "idx_app_user_status")
   @@index([userId, appliedAt], map: "idx_app_user_applied")
@@ -171,24 +213,6 @@ model Task {
   @@index([userId, doneAt, dueDate], map: "idx_task_user_due")
   @@index([applicationId])
   @@map("tasks")
-}
-
-/// Berkas lampiran (CV, portofolio, surat lamaran) per lamaran. File disimpan di disk.
-model Attachment {
-  id            BigInt      @id @default(autoincrement()) @db.UnsignedBigInt
-  userId        BigInt      @map("user_id") @db.UnsignedBigInt
-  applicationId BigInt      @map("application_id") @db.UnsignedBigInt
-  originalName  String      @map("original_name") @db.VarChar(255)
-  storedName    String      @unique @map("stored_name") @db.VarChar(100)
-  mimeType      String      @map("mime_type") @db.VarChar(100)
-  size          Int         @db.UnsignedInt
-  createdAt     DateTime    @default(now()) @map("created_at") @db.DateTime(0)
-  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-
-  @@index([applicationId])
-  @@index([userId])
-  @@map("attachments")
 }
 
 enum AnnouncementLevel {
@@ -248,6 +272,7 @@ enum AiGenerationKind {
   interview_prep
   ats_check
   job_extract
+  profile_extract
 }
 
 enum AiGenerationStatus {
@@ -296,4 +321,127 @@ model PasswordResetToken {
 
   @@index([userId, createdAt])
   @@map("password_reset_tokens")
+}
+
+enum CreditReason {
+  plan_grant
+  topup
+  usage
+  admin_adjust
+}
+
+/// Setiap perubahan saldo kredit AI (bertambah/berkurang).
+model AiCreditLedger {
+  id           BigInt       @id @default(autoincrement()) @db.UnsignedBigInt
+  userId       BigInt       @map("user_id") @db.UnsignedBigInt
+  delta        Int
+  reason       CreditReason
+  generationId BigInt?      @map("generation_id") @db.UnsignedBigInt
+  note         String?      @db.VarChar(255)
+  createdById  BigInt?      @map("created_by") @db.UnsignedBigInt
+  createdAt    DateTime     @default(now()) @map("created_at") @db.DateTime(0)
+  user         User         @relation("CreditOwner", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("ai_credit_ledger")
+}
+
+enum PaymentKind {
+  new_account
+  upgrade
+  topup
+}
+
+enum PaymentStatus {
+  pending
+  paid
+  expired
+  failed
+}
+
+/// Pesanan pembayaran otomatis (Midtrans Snap): beli akun baru, upgrade paket, isi ulang kredit.
+model PaymentOrder {
+  id               BigInt        @id @default(autoincrement()) @db.UnsignedBigInt
+  /// order_id di Midtrans, mis. WT-261017-K3M9Q2XA7B.
+  orderId          String        @unique @map("order_id") @db.VarChar(50)
+  kind             PaymentKind
+  plan             Plan?
+  credits          Int?          @db.UnsignedInt
+  /// Harga dihitung server dari daftar paket (rupiah).
+  amount           Int           @db.UnsignedInt
+  status           PaymentStatus @default(pending)
+  buyerName        String        @map("buyer_name") @db.VarChar(100)
+  buyerEmail       String        @map("buyer_email") @db.VarChar(191)
+  buyerWhatsapp    String?       @map("buyer_whatsapp") @db.VarChar(20)
+  /// Akun pemilik (upgrade/isi ulang), atau akun yang dibuat setelah lunas (akun baru).
+  userId           BigInt?       @map("user_id") @db.UnsignedBigInt
+  snapToken        String?       @map("snap_token") @db.VarChar(100)
+  redirectUrl      String?       @map("redirect_url") @db.VarChar(500)
+  paymentType      String?       @map("payment_type") @db.VarChar(40)
+  gatewayTxId      String?       @map("gateway_tx_id") @db.VarChar(100)
+  paidAt           DateTime?     @map("paid_at") @db.DateTime(0)
+  fulfilledAt      DateTime?     @map("fulfilled_at") @db.DateTime(0)
+  expiresAt        DateTime      @map("expires_at") @db.DateTime(0)
+  lastCheckedAt    DateTime?     @map("last_checked_at") @db.DateTime(0)
+  lastNotification Json?         @map("last_notification")
+  createdAt        DateTime      @default(now()) @map("created_at") @db.DateTime(0)
+  updatedAt        DateTime      @default(now()) @updatedAt @map("updated_at") @db.DateTime(0)
+  user             User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([status, expiresAt])
+  @@index([userId])
+  @@index([buyerEmail])
+  @@index([createdAt])
+  @@map("payment_orders")
+}
+
+enum PurchaseKind {
+  upgrade
+  topup
+}
+
+/// Pembelian setelah pembelian awal (upgrade paket & isi ulang kredit). Pembelian awal ada di licenses.
+model Purchase {
+  id          BigInt       @id @default(autoincrement()) @db.UnsignedBigInt
+  userId      BigInt       @map("user_id") @db.UnsignedBigInt
+  kind        PurchaseKind
+  plan        Plan?
+  credits     Int?         @db.UnsignedInt
+  price       Int          @db.UnsignedInt
+  paidAt      DateTime     @map("paid_at") @db.Date
+  notes       String?      @db.Text
+  createdById BigInt?      @map("created_by") @db.UnsignedBigInt
+  /// Pesanan Midtrans yang menghasilkan pembelian ini (unik: satu pesanan = satu pembelian).
+  paymentOrderId BigInt?   @unique @map("payment_order_id") @db.UnsignedBigInt
+  createdAt   DateTime     @default(now()) @map("created_at") @db.DateTime(0)
+  user        User         @relation("PurchaseOwner", fields: [userId], references: [id], onDelete: Cascade)
+  createdBy   User?        @relation("PurchaseCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([paidAt])
+  @@index([userId])
+  @@map("purchases")
+}
+/// "CV Saya": CV disimpan sekali per pengguna (maks. 5 aktif), lalu dipilih per lamaran.
+/// CV yang diganti/dihapus saat masih dipakai lamaran diarsipkan (archivedAt) agar riwayat tetap benar.
+model CvDocument {
+  id           BigInt        @id @default(autoincrement()) @db.UnsignedBigInt
+  userId       BigInt        @map("user_id") @db.UnsignedBigInt
+  label        String        @db.VarChar(100)
+  originalName String        @map("original_name") @db.VarChar(255)
+  storedName   String        @unique @map("stored_name") @db.VarChar(100)
+  mimeType     String        @map("mime_type") @db.VarChar(100)
+  size         Int           @db.UnsignedInt
+  sha256       String        @db.Char(64)
+  /// Teks hasil ekstraksi saat diunggah (dibaca AI). Null = CV hasil scan / tidak terbaca.
+  textContent  String?       @map("text_content") @db.MediumText
+  pageCount    Int?          @map("page_count") @db.UnsignedSmallInt
+  isDefault    Boolean       @default(false) @map("is_default")
+  archivedAt   DateTime?     @map("archived_at") @db.DateTime(0)
+  createdAt    DateTime      @default(now()) @map("created_at") @db.DateTime(0)
+  updatedAt    DateTime      @default(now()) @updatedAt @map("updated_at") @db.DateTime(0)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  applications Application[]
+
+  @@index([userId, archivedAt])
+  @@map("cv_documents")
 }

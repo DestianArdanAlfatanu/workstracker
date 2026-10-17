@@ -8,8 +8,8 @@ export type ErrorCode =
   | 'NOT_FOUND'
   | 'EMAIL_TAKEN'
   | 'RATE_LIMITED'
-  | 'AI_NOT_ENABLED'
-  | 'AI_QUOTA_EXCEEDED'
+  | 'PLAN_REQUIRED'
+  | 'AI_CREDITS_EXHAUSTED'
   | 'AI_UNAVAILABLE'
   | 'SERVICE_UNAVAILABLE'
   | 'INTERNAL_ERROR';
@@ -22,8 +22,8 @@ const STATUS_BY_CODE: Record<ErrorCode, number> = {
   NOT_FOUND: 404,
   EMAIL_TAKEN: 409,
   RATE_LIMITED: 429,
-  AI_NOT_ENABLED: 403,
-  AI_QUOTA_EXCEEDED: 429,
+  PLAN_REQUIRED: 403,
+  AI_CREDITS_EXHAUSTED: 402,
   AI_UNAVAILABLE: 503,
   SERVICE_UNAVAILABLE: 503,
   INTERNAL_ERROR: 500,
@@ -36,6 +36,8 @@ export class AppError extends Error {
     readonly code: ErrorCode,
     message: string,
     readonly fields?: Record<string, string>,
+    /** Info tambahan untuk klien, mis. `{ requiredPlan: 'standard' }`. */
+    readonly details?: Record<string, unknown>,
   ) {
     super(message);
     this.status = STATUS_BY_CODE[code];
@@ -44,8 +46,14 @@ export class AppError extends Error {
 
 export const notFound = (message = 'Data tidak ditemukan') => new AppError('NOT_FOUND', message);
 
-export function sendError(res: Response, code: ErrorCode, message: string, fields?: Record<string, string>) {
-  res.status(STATUS_BY_CODE[code]).json({ error: { code, message, ...(fields ? { fields } : {}) } });
+export function sendError(
+  res: Response,
+  code: ErrorCode,
+  message: string,
+  fields?: Record<string, string>,
+  details?: Record<string, unknown>,
+) {
+  res.status(STATUS_BY_CODE[code]).json({ error: { code, message, ...(fields ? { fields } : {}), ...(details ?? {}) } });
 }
 
 /** Membungkus handler async agar error diteruskan ke error middleware. */

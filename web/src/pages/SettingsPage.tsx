@@ -13,6 +13,9 @@ import { ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useSendTestReminder, useUpdatePreferences, useUpdateProfile } from '@/lib/queries';
 import { cn } from '@/lib/utils';
+import { MobileAppCard } from '@/components/MobileAppCard';
+import { PaymentHistoryCard } from '@/components/PaymentHistoryCard';
+import { PlanBadge, usePlan, useUpgradePrompt } from '@/components/plan';
 
 const nameSchema = profileUpdateSchema.innerType().pick({ name: true }).required();
 
@@ -99,6 +102,10 @@ export function SettingsPage() {
 
       <PreferencesCard />
 
+      <MobileAppCard />
+
+      <PaymentHistoryCard />
+
       <Card>
         <CardHeader>
           <CardTitle>Nama</CardTitle>
@@ -180,7 +187,11 @@ function PreferencesCard() {
   const prefs = useUpdatePreferences();
   const test = useSendTestReminder();
   const [goal, setGoal] = useState(state.user?.weeklyGoal ? String(state.user.weeklyGoal) : '');
-  const reminders = state.user?.emailReminders ?? true;
+  const { has } = usePlan();
+  const [upgradeDialog, promptUpgrade] = useUpgradePrompt();
+  const allowReminders = has('reminders');
+  // Pengingat email termasuk paket Standar ke atas.
+  const reminders = allowReminders && (state.user?.emailReminders ?? true);
 
   const save = (input: { emailReminders?: boolean; weeklyGoal?: number | null }, message: string) =>
     prefs.mutate(input, {
@@ -209,9 +220,13 @@ function PreferencesCard() {
         <CardDescription>Atur email pengingat harian dan target lamaran per minggu.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
+        {upgradeDialog}
         <div className="flex items-start justify-between gap-4">
           <div>
-            <Label htmlFor="email-reminders">Pengingat email harian</Label>
+            <Label htmlFor="email-reminders" className="flex items-center gap-2">
+              Pengingat email harian
+              {!allowReminders && <PlanBadge plan="standard" />}
+            </Label>
             <p className="mt-1 text-xs text-muted-foreground">
               Setiap pagi (±07.00 WIB) kami kirim daftar jadwal interview, follow-up, dan tugas yang jatuh tempo hari ini
               atau terlewat ke {state.user?.email}.
@@ -224,11 +239,13 @@ function PreferencesCard() {
             aria-checked={reminders}
             disabled={prefs.isPending}
             onClick={() =>
-              save({ emailReminders: !reminders }, !reminders ? 'Pengingat email diaktifkan' : 'Pengingat email dimatikan')
+              allowReminders
+                ? save({ emailReminders: !reminders }, !reminders ? 'Pengingat email diaktifkan' : 'Pengingat email dimatikan')
+                : promptUpgrade('reminders')
             }
             className={cn(
               'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-              reminders ? 'bg-primary' : 'bg-[#c5cad9]',
+              reminders ? 'bg-primary' : 'bg-[#cbd5e1]',
             )}
           >
             <span

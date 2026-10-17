@@ -4,11 +4,13 @@ import { toast } from 'sonner';
 import { ApiError } from '@/lib/api';
 import { useChangeStatus, useDeleteApplication, useRestoreApplication } from '@/lib/queries';
 import { ApplicationDetailSheet } from './ApplicationDetailSheet';
-import { ApplicationFormDialog } from './ApplicationFormDialog';
+import { ApplicationFormDialog, type ApplicationPrefill } from './ApplicationFormDialog';
 import { ConfirmDialog } from './common';
 
 interface ApplicationUI {
   openCreate: () => void;
+  /** Form Tambah lamaran yang sudah terisi (mis. dari loker yang dibagikan ke aplikasi). */
+  openCreateWith: (prefill: ApplicationPrefill) => void;
   openEdit: (app: Application) => void;
   openDetail: (id: number) => void;
   requestDelete: (app: Pick<Application, 'id' | 'company'>) => void;
@@ -26,7 +28,7 @@ export const errorMessage = (e: unknown) =>
  * sehingga dashboard maupun daftar bisa membuka aksi yang sama.
  */
 export function ApplicationUIProvider({ children }: { children: ReactNode }) {
-  const [form, setForm] = useState<{ open: boolean; app: Application | null }>({ open: false, app: null });
+  const [form, setForm] = useState<{ open: boolean; app: Application | null; prefill?: ApplicationPrefill }>({ open: false, app: null });
   const [detailId, setDetailId] = useState<number | null>(null);
   const [toDelete, setToDelete] = useState<Pick<Application, 'id' | 'company'> | null>(null);
   const [pendingStatusId, setPendingStatusId] = useState<number | null>(null);
@@ -79,6 +81,7 @@ export function ApplicationUIProvider({ children }: { children: ReactNode }) {
   const value = useMemo<ApplicationUI>(
     () => ({
       openCreate: () => setForm({ open: true, app: null }),
+      openCreateWith: (prefill) => setForm({ open: true, app: null, prefill: { ...prefill, id: Date.now() } }),
       openEdit: (app) => setForm({ open: true, app }),
       openDetail: setDetailId,
       requestDelete: setToDelete,
@@ -94,6 +97,7 @@ export function ApplicationUIProvider({ children }: { children: ReactNode }) {
       <ApplicationFormDialog
         open={form.open}
         application={form.app}
+        prefill={form.prefill}
         onOpenChange={(open) => setForm((f) => ({ ...f, open }))}
       />
       <ApplicationDetailSheet id={detailId} onClose={() => setDetailId(null)} />

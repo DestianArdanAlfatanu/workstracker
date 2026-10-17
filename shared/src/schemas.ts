@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { SORT_FIELDS, SOURCES, STATUSES, WORK_TYPES } from './enums';
 import { isValidISODate, todayISO } from './dates';
+import { PLAN_KEYS } from './plans';
 
 const trimOrNull = (v: unknown) => {
   if (typeof v !== 'string') return v;
@@ -77,6 +78,8 @@ const applicationBase = z.object({
   nextActionNote: optionalText(255, 'Catatan tindak lanjut'),
   notes: optionalText(5000, 'Catatan'),
   jobDescription: optionalText(20000, 'Deskripsi lowongan'),
+  /** CV dari "CV Saya" yang dipakai untuk lamaran ini (kosong = tanpa CV). */
+  cvId: z.preprocess((v) => (v === '' ? null : v), z.coerce.number().int().positive('CV tidak valid').nullish()),
 });
 
 type SalaryAndDate = {
@@ -140,6 +143,11 @@ export const listQuerySchema = z.object({
 });
 export type ListQuery = z.output<typeof listQuerySchema>;
 
+/** Cek apakah link lowongan sudah pernah disimpan (dipakai Chrome Extension). */
+export const jobUrlLookupSchema = z.object({
+  url: z.string({ required_error: 'URL wajib diisi' }).trim().min(8, 'URL tidak valid').max(2000, 'URL terlalu panjang'),
+});
+
 export const upcomingQuerySchema = z.object({
   limit: z.preprocess(emptyToUndefined, z.coerce.number().int().min(1).max(50).default(5)),
 });
@@ -183,9 +191,12 @@ const licenseFields = {
   notes: optionalText(2000, 'Catatan'),
 };
 
+const plan = z.enum(PLAN_KEYS, { errorMap: () => ({ message: 'Pilih paket' }) });
+
 export const adminCreateUserSchema = z.object({
   name: requiredText(100, 'Nama'),
   email,
+  plan: plan.default('standard'),
   ...licenseFields,
 });
 export type AdminCreateUserInput = z.input<typeof adminCreateUserSchema>;
@@ -251,6 +262,17 @@ export const preferencesSchema = z
   .partial();
 export type PreferencesInput = z.input<typeof preferencesSchema>;
 
+/** Langganan Web Push dari browser (PushSubscription.toJSON()). */
+export const pushSubscriptionSchema = z.object({
+  endpoint: z.string().url('Endpoint tidak valid').max(2000).refine((u) => u.startsWith('https://'), 'Endpoint harus https'),
+  keys: z.object({ p256dh: z.string().min(16).max(255), auth: z.string().min(8).max(100) }),
+});
+export type PushSubscriptionInput = z.input<typeof pushSubscriptionSchema>;
+export const pushUnsubscribeSchema = z.object({ endpoint: z.string().max(2000) });
+
+/** Link lowongan yang dibagikan ke aplikasi (Share Target) untuk dibaca judulnya. */
+export const shareResolveSchema = z.object({ url: z.string().trim().url('Link tidak valid').max(2000) });
+
 const idSchema = z.coerce.number().int().positive();
 
 export const taskCreateSchema = z.object({
@@ -309,16 +331,34 @@ export const announcementSchema = z.object({
 export type AnnouncementInput = z.input<typeof announcementSchema>;
 export const announcementUpdateSchema = announcementSchema.partial();
 
-/** Lampiran: tipe & ukuran yang diizinkan (dipakai API dan UI). */
-export const ATTACHMENT_MAX_BYTES = 5 * 1024 * 1024;
-export const ATTACHMENT_MAX_PER_APPLICATION = 10;
-export const ATTACHMENT_TYPES: Record<string, string> = {
+/* ------------------------------ CV Saya ------------------------------ */
+
+/** Maks. CV aktif per pengguna (CV arsip tidak dihitung). */
+export const CV_MAX_ACTIVE = 5;
+export const CV_MAX_BYTES = 5 * 1024 * 1024;
+/** Format CV yang diterima (MIME → ekstensi). */
+export const CV_TYPES: Record<string, string> = {
   'application/pdf': 'pdf',
   'application/msword': 'doc',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
-  'image/png': 'png',
-  'image/jpeg': 'jpg',
 };
+
+const cvLabel = requiredText(100, 'Nama CV');
+
+/** Unggah CV (multipart: file + label). */
+export const cvUploadSchema = z.object({ label: cvLabel });
+export const cvUpdateSchema = z
+  .object({
+    label: cvLabel,
+    isDefault: z.literal(true, { errorMap: () => ({ message: 'Hanya bisa dijadikan CV utama' }) }),
+  })
+  .partial();
+export type CvUpdateInput = z.input<typeof cvUpdateSchema>;
+
+/** Isi Profil Karier dari CV (AI). */
+export const profileFromCvSchema = z.object({
+  cvId: z.coerce.number({ invalid_type_error: 'Pilih CV' }).int().positive('Pilih CV'),
+});
 
 /* ----------------------- AI Career Assistant ----------------------- */
 
@@ -338,13 +378,14 @@ export const careerProfileSchema = z.object({
 });
 export type CareerProfileInput = z.input<typeof careerProfileSchema>;
 
-const cvAttachmentId = z.preprocess((v) => (v === '' ? null : v), z.coerce.number().int().positive().nullish());
+/** CV yang dibaca AI; kosong = CV yang terhubung ke lamaran. */
+const cvId = z.preprocess((v) => (v === '' ? null : v), z.coerce.number().int().positive().nullish());
 
 export const coverLetterOptionsSchema = z.object({
   language: z.enum(AI_LANGUAGES).default('id'),
   tone: z.enum(AI_TONES).default('formal'),
   length: z.enum(AI_LENGTHS).default('medium'),
-  cvAttachmentId,
+  cvId,
   extraNotes: optionalText(1000, 'Catatan tambahan'),
 });
 export type CoverLetterOptions = z.output<typeof coverLetterOptionsSchema>;
@@ -354,7 +395,7 @@ export const interviewPrepOptionsSchema = z.object({
   language: z.enum(AI_LANGUAGES).default('id'),
   focus: z.enum(INTERVIEW_FOCUSES).default('mixed'),
   questionCount: z.coerce.number().int().min(5, 'Minimal 5 pertanyaan').max(15, 'Maksimal 15 pertanyaan').default(10),
-  cvAttachmentId,
+  cvId,
 });
 export type InterviewPrepOptions = z.output<typeof interviewPrepOptionsSchema>;
 export type InterviewPrepOptionsInput = z.input<typeof interviewPrepOptionsSchema>;
@@ -371,25 +412,44 @@ export const generationTasksSchema = z.object({
   questionIndexes: z.array(z.number().int().min(0).max(30)).min(1, 'Pilih minimal satu pertanyaan').max(15),
 });
 
-export const adminAiSchema = z
-  .object({
-    aiEnabled: z.boolean(),
-    aiMonthlyLimit: z.coerce.number().int().min(0).max(1000),
-  })
-  .partial();
-export type AdminAiInput = z.input<typeof adminAiSchema>;
+const paymentFields = {
+  price: z.preprocess(emptyToUndefined, z.coerce.number().int().min(0, 'Harga tidak valid').max(100_000_000).default(0)),
+  paidAt: isoDate('Tanggal bayar').refine((d) => d <= todayISO(), 'Tanggal bayar tidak boleh di masa depan'),
+  notes: optionalText(2000, 'Catatan'),
+};
+
+/** Ubah paket pembeli (upgrade/downgrade). Harga = yang dibayar (default selisih harga paket). */
+export const adminPlanSchema = z.object({ plan, ...paymentFields });
+export type AdminPlanInput = z.input<typeof adminPlanSchema>;
+
+/** Tambah (isi ulang) atau koreksi kredit AI. Nilai negatif = koreksi pengurangan. */
+export const adminCreditsSchema = z.object({
+  credits: z.coerce
+    .number({ invalid_type_error: 'Jumlah kredit tidak valid' })
+    .int('Jumlah kredit harus bilangan bulat')
+    .min(-1000, 'Minimal -1000')
+    .max(1000, 'Maksimal 1000 kredit sekali tambah')
+    .refine((n) => n !== 0, 'Jumlah kredit tidak boleh 0'),
+  ...paymentFields,
+});
+export type AdminCreditsInput = z.input<typeof adminCreditsSchema>;
 export const atsCheckOptionsSchema = z.object({
   language: z.enum(AI_LANGUAGES).default('id'),
-  cvAttachmentId,
+  cvId,
 });
 export type AtsCheckOptionsInput = z.input<typeof atsCheckOptionsSchema>;
 
+/** Isi otomatis: teks lowongan dan/atau gambar poster (gambar dikirim sebagai multipart `images`). */
 export const jobExtractSchema = z.object({
-  text: z
-    .string({ required_error: 'Teks lowongan wajib diisi' })
-    .trim()
-    .min(80, 'Tempel teks lowongan yang lebih lengkap (minimal 80 karakter)')
-    .max(20000, 'Teks lowongan maksimal 20.000 karakter'),
+  text: z.preprocess(
+    emptyToUndefined,
+    z
+      .string()
+      .trim()
+      .min(80, 'Tempel teks lowongan yang lebih lengkap (minimal 80 karakter)')
+      .max(20000, 'Teks lowongan maksimal 20.000 karakter')
+      .optional(),
+  ),
 });
 
 export const insightsQuerySchema = z.object({

@@ -124,7 +124,7 @@ export function renderDigestEmail(user: Pick<User, 'name' | 'email'>, digest: Di
   const preheader =
     total === 0
       ? 'Tidak ada jadwal atau tugas yang jatuh tempo hari ini.'
-      : `${all[0].title}${all[0].detail ? ` — ${all[0].detail}` : ''}${total > 1 ? `, dan ${total - 1} agenda lainnya` : ''}.`;
+      : `${all[0].title}${all[0].detail ? ` (${all[0].detail})` : ''}${total > 1 ? `, dan ${total - 1} agenda lainnya` : ''}.`;
 
   let body = paragraph(`${greeting(now)}, ${escapeHtml(first)}.`);
   if (total === 0) {
@@ -159,7 +159,7 @@ export function renderDigestEmail(user: Pick<User, 'name' | 'email'>, digest: Di
   });
 
   const line = (i: DigestItem) =>
-    `- ${i.kind === 'schedule' ? 'Jadwal' : 'Tugas'}: ${i.title}${i.detail ? ` — ${i.detail}` : ''} (${i.daysLate > 0 ? `lewat ${i.daysLate} hari` : 'hari ini'})`;
+    `- ${i.kind === 'schedule' ? 'Jadwal' : 'Tugas'}: ${i.title}${i.detail ? `, ${i.detail}` : ''} (${i.daysLate > 0 ? `lewat ${i.daysLate} hari` : 'hari ini'})`;
   const text = [
     `${greeting(now)}, ${first}.`,
     '',
@@ -169,7 +169,7 @@ export function renderDigestEmail(user: Pick<User, 'name' | 'email'>, digest: Di
     '',
     `Buka daftar lamaran: ${listUrl}`,
     '',
-    '—',
+    '--',
     'WorksTracker · Catat lamaran, pantau tiap tahapnya.',
     `Ubah pengaturan pengingat: ${APP_URL}/settings`,
   ].join('\n');
@@ -213,7 +213,11 @@ export async function runDailyReminders(now = new Date()) {
       emailReminders: true,
       status: 'active',
       isDemo: false,
-      OR: [{ lastReminderOn: null }, { lastReminderOn: { lt: fromISODate(today) } }],
+      AND: [
+        // Email pengingat termasuk paket Standar ke atas (admin selalu).
+        { OR: [{ plan: { in: ['standard', 'premium'] } }, { role: 'admin' }] },
+        { OR: [{ lastReminderOn: null }, { lastReminderOn: { lt: fromISODate(today) } }] },
+      ],
     },
     select: { id: true, name: true, email: true },
     take: 500,

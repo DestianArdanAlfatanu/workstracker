@@ -1,3 +1,4 @@
+import { DEMO_CREDITS } from '@wt/shared';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { AppError } from '../../lib/http';
 import { hashPassword } from '../../lib/password';
@@ -28,8 +29,9 @@ export async function startDemo() {
       passwordHash: await hashPassword(randomBytes(24).toString('base64url')),
       isDemo: true,
       demoExpiresAt: new Date(now.getTime() + DEMO_TTL_HOURS * 3_600_000),
-      aiEnabled: true,
-      aiMonthlyLimit: 50,
+      // Demo memperlihatkan semua fitur (Premium); hasil AI berupa contoh tanpa biaya.
+      plan: 'premium',
+      aiCredits: DEMO_CREDITS,
       emailReminders: false,
     },
   });

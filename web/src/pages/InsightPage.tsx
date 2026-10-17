@@ -68,7 +68,7 @@ export function InsightPage() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="inline-flex rounded-xl bg-card p-1 shadow-[0_1px_3px_rgba(17,20,45,0.05)]" role="group" aria-label="Periode">
+        <div className="inline-flex rounded-xl bg-card p-1 shadow-[0_1px_3px_rgba(15,23,42,0.05)]" role="group" aria-label="Periode">
           {PERIODS.map((p) => (
             <button
               key={p.value}
@@ -124,13 +124,13 @@ export function InsightPage() {
             <Tile label="Lamaran dikirim" value={num.format(data.totalApplied)} icon={Send} hint="Tanpa wishlist" />
             <Tile
               label="Waktu sampai direspons"
-              value={data.medianDaysToResponse != null ? `${data.medianDaysToResponse} hari` : '—'}
+              value={data.medianDaysToResponse != null ? `${data.medianDaysToResponse} hari` : '-'}
               icon={Clock}
               hint="Median"
             />
             <Tile
               label="Waktu sampai interview"
-              value={data.medianDaysToInterview != null ? `${data.medianDaysToInterview} hari` : '—'}
+              value={data.medianDaysToInterview != null ? `${data.medianDaysToInterview} hari` : '-'}
               icon={Hourglass}
               hint="Median"
             />

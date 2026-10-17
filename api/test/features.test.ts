@@ -1,13 +1,11 @@
 import { addDaysISO, todayISO, weekStartISO } from '@wt/shared';
 import ExcelJS from 'exceljs';
-import { existsSync } from 'node:fs';
 import { readdir, rm } from 'node:fs/promises';
 import request from 'supertest';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { MAIL_PREVIEW_DIR } from '../src/lib/mailer';
 import { prisma } from '../src/lib/prisma';
-import { storedPath, UPLOAD_DIR } from '../src/lib/storage';
-import { purgeDeleted } from '../src/services/applications.service';
+import { UPLOAD_DIR } from '../src/lib/storage';
 import { runDailyReminders } from '../src/services/reminder.service';
 import { API, registerAdmin, registerUser, resetDb, validApplication } from './helpers';
 
@@ -24,8 +22,6 @@ async function setup() {
     (await request(ctx.app).post(`${API}/applications`).set(auth).send(validApplication(o)).expect(201)).body.data;
   return { ...ctx, auth, create };
 }
-
-const PDF = Buffer.from('%PDF-1.4\n% test\n');
 
 describe('bulk actions', () => {
   it('ubah status massal menulis riwayat, hapus & pulihkan massal', async () => {
@@ -91,67 +87,6 @@ describe('ekspor', () => {
     const ws = wb.getWorksheet('Lamaran')!;
     expect(ws.rowCount).toBe(3);
     expect(ws.getRow(1).getCell(1).value).toBe('Perusahaan');
-  });
-});
-
-describe('lampiran', () => {
-  it('upload, unduh, hapus; tolak file palsu & milik orang lain', async () => {
-    const { app, auth, create, user } = await setup();
-    const a = await create();
-    const up = await request(app)
-      .post(`${API}/applications/${a.id}/attachments`)
-      .set(auth)
-      .attach('file', PDF, { filename: 'CV Rina.pdf', contentType: 'application/pdf' })
-      .expect(201);
-    expect(up.body.data).toMatchObject({ originalName: 'CV Rina.pdf', mimeType: 'application/pdf', size: PDF.length });
-
-    const detail = await request(app).get(`${API}/applications/${a.id}`).set(auth);
-    expect(detail.body.data.attachments).toHaveLength(1);
-
-    const dl = await request(app).get(`${API}/attachments/${up.body.data.id}/download`).set(auth).expect(200);
-    expect(dl.headers['content-disposition']).toContain('CV Rina.pdf');
-
-    // File .exe berkedok PDF
-    const fake = await request(app)
-      .post(`${API}/applications/${a.id}/attachments`)
-      .set(auth)
-      .attach('file', Buffer.from('MZ fake'), { filename: 'cv.pdf', contentType: 'application/pdf' })
-      .expect(400);
-    expect(fake.body.error.message).toMatch(/tidak sesuai/);
-    await request(app)
-      .post(`${API}/applications/${a.id}/attachments`)
-      .set(auth)
-      .attach('file', Buffer.from('hello'), { filename: 'a.txt', contentType: 'text/plain' })
-      .expect(400);
-
-    const other = await registerUser(app);
-    const otherAuth = { Authorization: `Bearer ${other.token}` };
-    await request(app).get(`${API}/attachments/${up.body.data.id}/download`).set(otherAuth).expect(404);
-    await request(app)
-      .post(`${API}/applications/${a.id}/attachments`)
-      .set(otherAuth)
-      .attach('file', PDF, { filename: 'x.pdf', contentType: 'application/pdf' })
-      .expect(404);
-
-    const stored = await prisma.attachment.findFirstOrThrow({ where: { id: BigInt(up.body.data.id) } });
-    const file = storedPath(BigInt(user.id), stored.storedName);
-    expect(existsSync(file)).toBe(true);
-    await request(app).delete(`${API}/attachments/${up.body.data.id}`).set(auth).expect(204);
-    expect(existsSync(file)).toBe(false);
-  });
-
-  it('purge lamaran lama ikut menghapus file lampirannya', async () => {
-    const { app, auth, create, user } = await setup();
-    const a = await create();
-    const up = await request(app)
-      .post(`${API}/applications/${a.id}/attachments`)
-      .set(auth)
-      .attach('file', PDF, { filename: 'cv.pdf', contentType: 'application/pdf' })
-      .expect(201);
-    const stored = await prisma.attachment.findFirstOrThrow({ where: { id: BigInt(up.body.data.id) } });
-    await prisma.application.update({ where: { id: BigInt(a.id) }, data: { deletedAt: new Date(Date.now() - 31 * 86_400_000) } });
-    await purgeDeleted(30);
-    expect(existsSync(storedPath(BigInt(user.id), stored.storedName))).toBe(false);
   });
 });
 

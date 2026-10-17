@@ -9,14 +9,18 @@ export const API = '/api/v1';
 
 export async function resetDb() {
   await prisma.passwordResetToken.deleteMany();
+  await prisma.aiCreditLedger.deleteMany();
+  await prisma.purchase.deleteMany();
   await prisma.aiGeneration.deleteMany();
   await prisma.careerProfile.deleteMany();
   await prisma.announcementRead.deleteMany();
   await prisma.announcement.deleteMany();
   await prisma.task.deleteMany();
-  await prisma.attachment.deleteMany();
   await prisma.statusHistory.deleteMany();
   await prisma.application.deleteMany();
+  await prisma.cvDocument.deleteMany();
+  await prisma.paymentOrder.deleteMany();
+  await prisma.pushSubscription.deleteMany();
   await prisma.refreshToken.deleteMany();
   await prisma.license.deleteMany();
   await prisma.user.deleteMany();
@@ -27,10 +31,18 @@ let counter = 0;
 /**
  * Registrasi publik ditutup, jadi user test dibuat langsung di database lalu login
  * lewat service (tidak lewat HTTP agar tidak terkena rate limit login).
+ * Default paket Standar (semua fitur kecuali AI); tes AI memakai `plan: 'premium'`.
  */
 export async function registerUser(
   app = createApp(),
-  overrides: Partial<{ name: string; email: string; password: string; role: 'user' | 'admin' }> = {},
+  overrides: Partial<{
+    name: string;
+    email: string;
+    password: string;
+    role: 'user' | 'admin';
+    plan: 'basic' | 'standard' | 'premium';
+    aiCredits: number;
+  }> = {},
 ) {
   counter += 1;
   const body = {
@@ -44,6 +56,8 @@ export async function registerUser(
       name: body.name,
       email: body.email,
       role: overrides.role ?? 'user',
+      plan: overrides.plan ?? 'standard',
+      aiCredits: overrides.aiCredits ?? 0,
       passwordHash: await hashPassword(body.password),
     },
   });

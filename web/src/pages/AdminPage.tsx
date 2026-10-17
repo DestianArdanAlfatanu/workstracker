@@ -1,7 +1,9 @@
-import { PAGE_SIZE, type AdminCredentials, type AdminOverview, type AdminUser } from '@wt/shared';
+import { CREDIT_COST_ALERT_IDR, CREDIT_PRICE, PAGE_SIZE, PLAN_KEYS, type AdminCredentials, type AdminOverview, type AdminUser } from '@wt/shared';
 import {
+  ArrowUpCircle,
   Ban,
   CheckCircle2,
+  Coins,
   KeyRound,
   MessageCircle,
   MoreHorizontal,
@@ -19,7 +21,8 @@ import {
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { AiSettingsDialog, BuyerFormDialog, CredentialsDialog, DeleteBuyerDialog } from '@/components/admin';
+import { BuyerFormDialog, CreditsDialog, CredentialsDialog, DeleteBuyerDialog, PlanDialog } from '@/components/admin';
+import { PlanBadge } from '@/components/plan';
 import { errorMessage } from '@/components/application-ui';
 import { MonthlyBarChart, type BarSeries } from '@/components/charts';
 import { ConfirmDialog, EmptyState, Pagination, SearchInput } from '@/components/common';
@@ -68,7 +71,7 @@ function StatTile({
     <Card
       className={cn(
         'flex flex-col gap-4 p-4 sm:p-5',
-        highlight && 'bg-gradient-to-br from-[#5470ff] to-[#3049e6] text-white shadow-[0_12px_28px_-12px_rgba(61,90,241,0.75)]',
+        highlight && 'border-transparent bg-[#1d4ed8] text-white shadow-[0_14px_28px_-20px_rgba(15,23,42,0.7)]',
       )}
     >
       <span
@@ -109,18 +112,55 @@ function StatusPill({ user }: { user: AdminUser }) {
   );
 }
 
-function AiPill({ user }: { user: AdminUser }) {
-  if (!user.aiEnabled) return <span className="text-xs text-muted-foreground">—</span>;
+/** Paket + saldo kredit AI (khusus Premium). */
+function PlanCell({ user }: { user: AdminUser }) {
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-xs font-semibold tabular-nums text-accent-foreground">
-      <Sparkles className="size-3" aria-hidden />
-      {user.aiUsedThisMonth}/{user.aiMonthlyLimit}
+    <span className="inline-flex flex-wrap items-center gap-1.5">
+      <PlanBadge plan={user.plan} />
+      {(user.plan === 'premium' || user.aiCredits > 0) && (
+        <span
+          className="inline-flex items-center gap-1 text-xs tabular-nums text-muted-foreground"
+          title={`${user.aiCreditsUsedThisMonth} kredit terpakai bulan ini`}
+        >
+          <Sparkles className="size-3" aria-hidden />
+          {num.format(user.aiCredits)} kredit
+        </span>
+      )}
     </span>
   );
 }
 
+/** Pembeli aktif per paket + modal AI per kredit (peringatan bila margin menipis). */
+function PlanSummary({ o }: { o: AdminOverview }) {
+  const perCredit = o.aiCostPerCreditIdr;
+  const warn = perCredit != null && perCredit > CREDIT_COST_ALERT_IDR;
+  return (
+    <Card className="flex flex-col gap-3 p-4 min-[420px]:col-span-2 sm:p-5">
+      <p className="text-sm font-medium text-muted-foreground">Pembeli aktif per paket</p>
+      <div className="grid grid-cols-3 gap-2">
+        {PLAN_KEYS.map((p) => (
+          <div key={p} className="flex flex-col items-start gap-1 rounded-xl bg-muted px-3 py-2">
+            <PlanBadge plan={p} />
+            <span className="text-xl font-bold tabular-nums">{num.format(o.byPlan[p])}</span>
+          </div>
+        ))}
+      </div>
+      <p className={cn('text-xs', warn ? 'font-semibold text-[#a32020]' : 'text-muted-foreground')}>
+        Kredit AI terpakai bulan ini: {num.format(o.aiCreditsUsedThisMonth)}
+        {perCredit != null && (
+          <>
+            {' '}
+            · modal rata-rata {formatRupiah(perCredit)}/kredit (dijual {formatRupiah(CREDIT_PRICE)})
+            {warn && '. Margin menipis, pertimbangkan menaikkan bobot kredit.'}
+          </>
+        )}
+      </p>
+    </Card>
+  );
+}
+
 function WhatsappLink({ number }: { number: string | null | undefined }) {
-  if (!number) return <span className="text-muted-foreground">—</span>;
+  if (!number) return <span className="text-muted-foreground">-</span>;
   return (
     <a
       href={`https://wa.me/${number}`}
@@ -147,7 +187,8 @@ export function AdminPage() {
   const [creds, setCreds] = useState<{ data: AdminCredentials; isReset: boolean } | null>(null);
   const [confirm, setConfirm] = useState<{ type: 'reset' | 'suspend'; buyer: AdminUser } | null>(null);
   const [toDelete, setToDelete] = useState<AdminUser | null>(null);
-  const [aiFor, setAiFor] = useState<AdminUser | null>(null);
+  const [planFor, setPlanFor] = useState<AdminUser | null>(null);
+  const [creditsFor, setCreditsFor] = useState<AdminUser | null>(null);
 
   const resetMutation = useResetBuyerPassword();
   const statusMutation = useSetBuyerStatus();
@@ -215,9 +256,13 @@ export function AdminPage() {
           <Pencil />
           Edit data
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => setAiFor(u)}>
-          <Sparkles />
-          Atur add-on AI
+        <DropdownMenuItem onSelect={() => setPlanFor(u)}>
+          <ArrowUpCircle />
+          Ubah paket
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => setCreditsFor(u)}>
+          <Coins />
+          Kredit AI
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={() => setConfirm({ type: 'reset', buyer: u })}>
           <KeyRound />
@@ -276,9 +321,10 @@ export function AdminPage() {
                 hint={`Biaya AI: $${o.aiCostThisMonthUsd.toFixed(2)} (${num.format(o.aiGenerationsThisMonth)} generate)`}
                 icon={CalendarRange}
               />
+              <PlanSummary o={o} />
             </>
           ) : (
-            Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-36 rounded-2xl bg-card" />)
+            Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-36 rounded-2xl bg-card" />)
           )}
         </section>
 
@@ -368,13 +414,13 @@ export function AdminPage() {
                 <thead className="border-y bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
                   <tr>
                     <th scope="col" className="px-5 py-3 font-medium">Pembeli</th>
+                    <th scope="col" className="px-4 py-3 font-medium">Paket</th>
                     <th scope="col" className="px-4 py-3 font-medium">WhatsApp</th>
                     <th scope="col" className="px-4 py-3 font-medium">Tgl beli</th>
                     <th scope="col" className="px-4 py-3 text-right font-medium">Harga</th>
                     <th scope="col" className="px-4 py-3 font-medium">Status</th>
                     <th scope="col" className="px-4 py-3 font-medium">Login terakhir</th>
                     <th scope="col" className="px-4 py-3 text-right font-medium">Lamaran</th>
-                    <th scope="col" className="px-4 py-3 font-medium">AI</th>
                     <th scope="col" className="w-12 px-2 py-3"><span className="sr-only">Aksi</span></th>
                   </tr>
                 </thead>
@@ -391,6 +437,9 @@ export function AdminPage() {
                         )}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3">
+                        <PlanCell user={u} />
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3">
                         <WhatsappLink number={u.license?.whatsapp} />
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 tabular-nums">{formatDate(u.license?.purchasedAt)}</td>
@@ -404,9 +453,6 @@ export function AdminPage() {
                         {u.lastLoginAt ? formatDateTime(u.lastLoginAt) : 'Belum pernah'}
                       </td>
                       <td className="px-4 py-3 text-right tabular-nums">{num.format(u.applicationCount)}</td>
-                      <td className="whitespace-nowrap px-4 py-3">
-                        <AiPill user={u} />
-                      </td>
                       <td className="px-2 py-3">{actions(u)}</td>
                     </tr>
                   ))}
@@ -427,7 +473,7 @@ export function AdminPage() {
                   </div>
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
                     <StatusPill user={u} />
-                    <AiPill user={u} />
+                    <PlanCell user={u} />
                     <WhatsappLink number={u.license?.whatsapp} />
                   </div>
                   <p className="text-xs text-muted-foreground">
@@ -463,7 +509,8 @@ export function AdminPage() {
         destructive={confirm?.type === 'suspend'}
         onConfirm={runConfirm}
       />
-      <AiSettingsDialog buyer={aiFor} onOpenChange={(open) => !open && setAiFor(null)} />
+      <PlanDialog buyer={planFor} onOpenChange={(open) => !open && setPlanFor(null)} />
+      <CreditsDialog buyer={creditsFor} onOpenChange={(open) => !open && setCreditsFor(null)} />
       <DeleteBuyerDialog buyer={toDelete} onOpenChange={(open) => !open && setToDelete(null)} onConfirm={remove} />
     </div>
   );

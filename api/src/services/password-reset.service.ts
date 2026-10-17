@@ -65,7 +65,7 @@ function resetEmail(user: Pick<User, 'name' | 'email'>, link: string) {
     `Link ini berlaku ${RESET_TTL_MINUTES} menit dan hanya dapat digunakan satu kali.`,
     'Jika Anda tidak meminta ini, abaikan email ini. Password Anda tidak akan berubah.',
     '',
-    '—',
+    '--',
     'WorksTracker · Catat lamaran, pantau tiap tahapnya.',
   ].join('\n');
   return { subject: 'Atur ulang password WorksTracker', html, text, attachments };
@@ -102,6 +102,24 @@ function changedEmail(user: Pick<User, 'name' | 'email'>, at: Date) {
 
 /* ------------------------------ Alur reset ------------------------------ */
 
+/** Buat token sekali pakai (hanya token terbaru yang berlaku) dan kembalikan link halaman reset. */
+async function issueToken(userId: bigint, ttlMs: number, ip?: string, query = '') {
+  const token = randomBytes(32).toString('base64url');
+  await prisma.$transaction([
+    prisma.passwordResetToken.updateMany({ where: { userId, usedAt: null }, data: { usedAt: new Date() } }),
+    prisma.passwordResetToken.create({
+      data: { userId, tokenHash: hashToken(token), expiresAt: new Date(Date.now() + ttlMs), requestedIp: ip?.slice(0, 45) ?? null },
+    }),
+  ]);
+  return `${APP_URL}/reset-password?token=${encodeURIComponent(token)}${query}`;
+}
+
+/** Masa berlaku link "buat password" untuk akun yang dibeli otomatis. */
+export const SETUP_TTL_HOURS = 72;
+
+/** Link membuat password pertama untuk akun baru hasil pembayaran otomatis. */
+export const createSetupLink = (userId: bigint) => issueToken(userId, SETUP_TTL_HOURS * 3_600_000, undefined, '&baru=1');
+
 /**
  * Minta link reset. Respons ke klien selalu sama (tidak membocorkan apakah email terdaftar);
  * keputusan kirim/tidak hanya tercatat di log server.
@@ -121,21 +139,7 @@ export async function requestReset(email: string, ip: string | undefined) {
     return;
   }
 
-  const token = randomBytes(32).toString('base64url');
-  await prisma.$transaction([
-    // Hanya link terbaru yang berlaku.
-    prisma.passwordResetToken.updateMany({ where: { userId: user.id, usedAt: null }, data: { usedAt: new Date() } }),
-    prisma.passwordResetToken.create({
-      data: {
-        userId: user.id,
-        tokenHash: hashToken(token),
-        expiresAt: new Date(Date.now() + RESET_TTL_MINUTES * 60_000),
-        requestedIp: ip?.slice(0, 45) ?? null,
-      },
-    }),
-  ]);
-
-  const link = `${APP_URL}/reset-password?token=${encodeURIComponent(token)}`;
+  const link = await issueToken(user.id, RESET_TTL_MINUTES * 60_000, ip);
   try {
     await sendMail({ to: user.email, ...resetEmail(user, link) });
   } catch (err) {

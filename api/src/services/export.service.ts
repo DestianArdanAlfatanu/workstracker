@@ -19,6 +19,7 @@ const COLUMNS: Array<{ header: string; width: number; value: (a: Application) =>
   { header: 'Kontak HR', width: 18, value: (a) => a.contactName },
   { header: 'Email HR', width: 24, value: (a) => a.contactEmail },
   { header: 'Catatan', width: 40, value: (a) => a.notes },
+  { header: 'Deskripsi lowongan', width: 50, value: (a) => a.jobDescription },
 ];
 
 /** Cegah formula injection saat file dibuka di Excel/Sheets. */
@@ -42,7 +43,7 @@ export function toCsv(rows: Application[]): Buffer {
   return Buffer.from(`﻿${lines.join('\r\n')}\r\n`, 'utf8');
 }
 
-export async function toXlsx(rows: Application[]): Promise<Buffer> {
+export async function toXlsx(rows: Application[], { template = false } = {}): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   wb.creator = 'WorksTracker';
   const ws = wb.addWorksheet('Lamaran', { views: [{ state: 'frozen', ySplit: 1 }] });
@@ -50,7 +51,32 @@ export async function toXlsx(rows: Application[]): Promise<Buffer> {
   ws.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
   ws.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF3D5AF1' } };
   for (const r of rows) ws.addRow(COLUMNS.map((c) => cell(c.value(r))));
+  if (template) ws.getRow(2).font = { italic: true, color: { argb: 'FF6B7280' } };
   for (const key of [8, 9]) ws.getColumn(key).numFmt = '#,##0';
   ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: COLUMNS.length } };
   return Buffer.from(await wb.xlsx.writeBuffer());
+}
+
+/** Template impor: judul kolom ekspor + satu baris contoh (boleh dihapus). */
+export function templateXlsx() {
+  const today = new Date();
+  const sample = {
+    company: 'PT Contoh Sejahtera',
+    position: 'Frontend Developer',
+    status: 'interview',
+    source: 'linkedin',
+    appliedAt: new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1)),
+    location: 'Jakarta',
+    workType: 'hybrid',
+    salaryMin: 8_000_000,
+    salaryMax: 10_000_000,
+    nextActionDate: null,
+    nextActionNote: 'Interview user',
+    jobUrl: 'https://www.linkedin.com/jobs/view/1234567890/',
+    contactName: 'Budi (HR)',
+    contactEmail: 'hr@contoh.co.id',
+    notes: 'Baris contoh, hapus sebelum impor',
+    jobDescription: null,
+  } as unknown as Application;
+  return toXlsx([sample], { template: true });
 }

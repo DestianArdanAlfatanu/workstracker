@@ -1,10 +1,11 @@
 import type { Request, Response } from 'express';
 import { todayISO, type ExportQuery, type ListQuery } from '@wt/shared';
-import { parseId } from '../lib/http';
+import { AppError, parseId } from '../lib/http';
 import { serializeApplication, serializeApplicationDetail } from '../lib/serialize';
 import { currentUserId } from '../middlewares/auth';
 import * as apps from '../services/applications.service';
 import * as exporter from '../services/export.service';
+import * as importer from '../services/import.service';
 
 export async function list(req: Request, res: Response) {
   const query = req.query as unknown as ListQuery;
@@ -13,6 +14,10 @@ export async function list(req: Request, res: Response) {
     data: items.map(serializeApplication),
     meta: { page: query.page, limit: query.limit, total },
   });
+}
+
+export async function lookup(req: Request, res: Response) {
+  res.json({ data: await apps.findByJobUrl(currentUserId(req), String(req.query.url)) });
 }
 
 export async function upcoming(req: Request, res: Response) {
@@ -68,4 +73,20 @@ export async function exportFile(req: Request, res: Response) {
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   res.attachment(`lamaran-${stamp}.xlsx`);
   res.send(await exporter.toXlsx(rows));
+}
+
+export async function importParse(req: Request, res: Response) {
+  if (!req.file) throw new AppError('VALIDATION_ERROR', 'Pilih file Excel atau CSV', { file: 'Pilih file' });
+  res.json({ data: await importer.parseFile(req.file) });
+}
+
+export async function importCommit(req: Request, res: Response) {
+  const result = await importer.commit(currentUserId(req), req.body);
+  res.status(req.body.dryRun ? 200 : 201).json({ data: result });
+}
+
+export async function importTemplate(_req: Request, res: Response) {
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.attachment('template-impor-workstracker.xlsx');
+  res.send(await exporter.templateXlsx());
 }

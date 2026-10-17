@@ -1,0 +1,266 @@
+:root {
+  --blue: #1d4ed8;
+  --blue-dark: #1e40af;
+  --navy: #0f172a;
+  --text: #11142d;
+  --muted: #6b7185;
+  --border: #dfe2ec;
+  --bg: #eceef5;
+  --card: #ffffff;
+  --accent: #eff6ff;
+  --danger: #d93636;
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color: var(--text);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  width: 380px;
+  background: var(--bg);
+}
+
+.popup {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.brand {
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  font-size: 16px;
+  color: var(--navy);
+}
+.who {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.center {
+  text-align: center;
+  padding: 28px 0;
+}
+.muted {
+  color: var(--muted);
+}
+.small {
+  font-size: 11px;
+}
+
+.panel,
+.form {
+  background: var(--card);
+  border-radius: 16px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.panel {
+  align-items: center;
+  text-align: center;
+  padding: 20px 16px;
+}
+.panel h1 {
+  margin: 0;
+  font-size: 16px;
+}
+.panel p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--blue);
+  font-weight: 800;
+  font-size: 18px;
+}
+.badge.ok {
+  background: #dcf7e7;
+  color: #0f6b3a;
+}
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  margin-top: 4px;
+}
+
+.btn {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  border: 0;
+  border-radius: 999px;
+  padding: 9px 14px;
+  cursor: pointer;
+}
+.btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.btn.primary {
+  background: var(--blue);
+  color: #fff;
+  box-shadow: 0 8px 18px -10px rgba(29, 78, 216, 0.8);
+}
+.btn.primary:hover:not(:disabled) {
+  background: var(--blue-dark);
+}
+.btn.ghost {
+  background: transparent;
+  color: var(--muted);
+}
+.btn.ghost:hover {
+  color: var(--text);
+}
+
+.source {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.ai {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ai-btn {
+  background: linear-gradient(90deg, var(--blue), #7c3aed);
+  color: #fff;
+}
+
+.note {
+  font-size: 12px;
+  line-height: 1.45;
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: var(--accent);
+  color: var(--blue-dark);
+}
+.note.warn {
+  background: #fff7e0;
+  color: #7a4b00;
+}
+.note.error {
+  background: #fde4e4;
+  color: #a32020;
+}
+.note a {
+  color: inherit;
+  font-weight: 700;
+}
+
+.status {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  border: 0;
+  margin: 0;
+  padding: 4px;
+  background: #f3f4f9;
+  border-radius: 12px;
+}
+.status label {
+  text-align: center;
+  padding: 7px 0;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+  cursor: pointer;
+}
+.status label.active {
+  background: var(--blue);
+  color: #fff;
+}
+.status input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.field b {
+  color: var(--danger);
+}
+.field input,
+.field select,
+.field textarea {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 400;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 7px 10px;
+  background: #fff;
+  color: var(--text);
+}
+.field textarea {
+  resize: vertical;
+}
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+  outline: 2px solid var(--blue);
+  outline-offset: 1px;
+}
+.field.invalid input {
+  border-color: var(--danger);
+}
+.field em {
+  font-style: normal;
+  color: var(--danger);
+  font-weight: 500;
+}
+
+details summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--blue);
+  margin-bottom: 6px;
+}
+details .field {
+  margin-top: 6px;
+}
+
+.url {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

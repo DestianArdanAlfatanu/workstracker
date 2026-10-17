@@ -2,8 +2,9 @@ import type {
   AiGeneration as DbAiGeneration,
   Announcement as DbAnnouncement,
   Application as DbApplication,
-  Attachment as DbAttachment,
+  CvDocument as DbCvDocument,
   License as DbLicense,
+  Purchase as DbPurchase,
   Task as DbTask,
   StatusHistory,
   User as DbUser,
@@ -16,7 +17,8 @@ import type {
   Announcement,
   Application,
   ApplicationDetail,
-  Attachment,
+  CvDocument,
+  Purchase,
   Status,
   StatusHistoryEntry,
   Task,
@@ -37,7 +39,8 @@ export function serializeUser(u: DbUser): User {
     mustChangePassword: u.mustChangePassword,
     emailReminders: u.emailReminders,
     weeklyGoal: u.weeklyGoal,
-    aiEnabled: u.aiEnabled,
+    plan: u.plan,
+    aiCredits: u.aiCredits,
     isDemo: u.isDemo,
     demoExpiresAt: u.demoExpiresAt?.toISOString() ?? null,
     createdAt: u.createdAt.toISOString(),
@@ -46,7 +49,7 @@ export function serializeUser(u: DbUser): User {
 
 export function serializeAdminUser(
   u: DbUser & { license: DbLicense | null; _count: { applications: number } },
-  aiUsedThisMonth = 0,
+  aiCreditsUsedThisMonth = 0,
 ): AdminUser {
   return {
     id: Number(u.id),
@@ -58,9 +61,9 @@ export function serializeAdminUser(
     lastLoginAt: u.lastLoginAt?.toISOString() ?? null,
     createdAt: u.createdAt.toISOString(),
     applicationCount: u._count.applications,
-    aiEnabled: u.aiEnabled,
-    aiMonthlyLimit: u.aiMonthlyLimit,
-    aiUsedThisMonth,
+    plan: u.plan,
+    aiCredits: u.aiCredits,
+    aiCreditsUsedThisMonth,
     license: u.license
       ? {
           whatsapp: u.license.whatsapp,
@@ -72,7 +75,9 @@ export function serializeAdminUser(
   };
 }
 
-export function serializeApplication(a: DbApplication): Application {
+type DbAppWithCv = DbApplication & { cv?: { id: bigint; label: string; archivedAt: Date | null } | null };
+
+export function serializeApplication(a: DbAppWithCv): Application {
   return {
     id: Number(a.id),
     company: a.company,
@@ -91,6 +96,7 @@ export function serializeApplication(a: DbApplication): Application {
     nextActionNote: a.nextActionNote,
     notes: a.notes,
     jobDescription: a.jobDescription,
+    cv: a.cv ? { id: Number(a.cv.id), label: a.cv.label, archived: a.cv.archivedAt !== null } : null,
     createdAt: a.createdAt.toISOString(),
     updatedAt: a.updatedAt.toISOString(),
   };
@@ -105,24 +111,26 @@ export function serializeHistory(h: StatusHistory): StatusHistoryEntry {
   };
 }
 
-export function serializeAttachment(a: DbAttachment): Attachment {
+export function serializeCv(c: DbCvDocument & { _count?: { applications: number } }): CvDocument {
   return {
-    id: Number(a.id),
-    applicationId: Number(a.applicationId),
-    originalName: a.originalName,
-    mimeType: a.mimeType,
-    size: a.size,
-    createdAt: a.createdAt.toISOString(),
+    id: Number(c.id),
+    label: c.label,
+    originalName: c.originalName,
+    mimeType: c.mimeType,
+    size: c.size,
+    hasText: !!c.textContent,
+    pageCount: c.pageCount,
+    isDefault: c.isDefault,
+    archived: c.archivedAt !== null,
+    usedBy: c._count?.applications ?? 0,
+    createdAt: c.createdAt.toISOString(),
   };
 }
 
-export function serializeApplicationDetail(
-  a: DbApplication & { history: StatusHistory[]; attachments: DbAttachment[] },
-): ApplicationDetail {
+export function serializeApplicationDetail(a: DbAppWithCv & { history: StatusHistory[] }): ApplicationDetail {
   return {
     ...serializeApplication(a),
     history: a.history.map(serializeHistory),
-    attachments: a.attachments.map(serializeAttachment),
   };
 }
 
@@ -170,5 +178,17 @@ export function serializeAiGeneration(g: DbAiGeneration): AiGeneration {
     rating: g.rating === 1 || g.rating === -1 ? g.rating : null,
     model: g.model,
     createdAt: g.createdAt.toISOString(),
+  };
+}
+export function serializePurchase(p: DbPurchase): Purchase {
+  return {
+    id: Number(p.id),
+    kind: p.kind,
+    plan: p.plan,
+    credits: p.credits,
+    price: p.price,
+    paidAt: toISODate(p.paidAt),
+    notes: p.notes,
+    createdAt: p.createdAt.toISOString(),
   };
 }

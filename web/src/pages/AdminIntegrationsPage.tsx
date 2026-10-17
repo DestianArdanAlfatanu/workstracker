@@ -61,7 +61,7 @@ export function AdminIntegrationsPage() {
     testAi.mutate(undefined, {
       onSuccess: (r) =>
         r.ok
-          ? toast.success(`Claude terhubung (${r.model}, ${((r.latencyMs ?? 0) / 1000).toFixed(1)} dtk)`)
+          ? toast.success(`Gemini terhubung (${r.model}, ${((r.latencyMs ?? 0) / 1000).toFixed(1)} dtk)`)
           : toast.error(r.error ?? 'Tes AI gagal'),
       onError: (e) => toast.error(errorMessage(e)),
     });
@@ -69,7 +69,7 @@ export function AdminIntegrationsPage() {
     testEmail.mutate(undefined, {
       onSuccess: (r) =>
         r.ok
-          ? toast.success(r.previewMode ? 'SMTP belum diatur — email disimpan sebagai preview di server' : `Email uji dikirim ke ${r.to}`)
+          ? toast.success(r.previewMode ? 'SMTP belum diatur. Email disimpan sebagai preview di server.' : `Email uji dikirim ke ${r.to}`)
           : toast.error(r.error ?? 'Tes email gagal'),
       onError: (e) => toast.error(errorMessage(e)),
     });
@@ -81,14 +81,14 @@ export function AdminIntegrationsPage() {
       <Alert variant="info">
         <PlugZap aria-hidden />
         <div>
-          Keduanya berjalan di localhost selama komputer terhubung ke internet dan jendela API menyala — tidak perlu
+          Keduanya berjalan di localhost selama komputer terhubung ke internet dan jendela API menyala, tanpa perlu
           hosting. Setelah mengubah <span className={code}>api/.env</span>, restart jendela "WorksTracker API".
         </div>
       </Alert>
 
       <Section
         icon={Sparkles}
-        title="AI Career Assistant (Claude)"
+        title="AI Career Assistant (Google Gemini)"
         badge={<StatusBadge ok={data.ai.configured} okText={data.ai.fake ? 'Mode palsu (AI_FAKE)' : 'API key terpasang'} notText="Belum diatur" />}
       >
         <p className="text-sm text-muted-foreground">
@@ -96,19 +96,20 @@ export function AdminIntegrationsPage() {
         </p>
         <ol className="list-decimal space-y-1.5 pl-5 text-sm">
           <li>
-            Buka <strong>console.anthropic.com</strong>, buat akun, lalu isi kredit di menu <strong>Billing</strong> (mulai
-            $5 cukup untuk ±80 cover letter).
+            Buka <strong>aistudio.google.com/apikey</strong> dengan akun Google, lalu <strong>Create API key</strong> dan salin
+            kuncinya.
           </li>
           <li>
-            Menu <strong>API Keys</strong> → <strong>Create Key</strong>, salin kuncinya (diawali{' '}
-            <span className={code}>sk-ant-</span>).
+            Aktifkan <strong>billing (paid tier)</strong> pada project tersebut. Di tier gratis, data yang dikirim (termasuk CV
+            pengguna) boleh dipakai Google untuk meningkatkan produknya, dan batas pemakaiannya sangat kecil.
           </li>
           <li>
-            Tempel di <span className={code}>api/.env</span>: <span className={code}>ANTHROPIC_API_KEY=sk-ant-...</span>, pastikan{' '}
+            Tempel di <span className={code}>api/.env</span>: <span className={code}>GEMINI_API_KEY=...</span>, pastikan{' '}
             <span className={code}>AI_FAKE</span> kosong, lalu restart API.
           </li>
           <li>
-            Disarankan: atur <strong>spend limit</strong> bulanan di Console sebagai pengaman biaya.
+            Disarankan: pasang <strong>budget alert</strong> di Google Cloud Billing sebagai pengaman biaya. Perkiraan modal ±Rp
+            370 per kredit AI (sudah termasuk PPN 11%).
           </li>
         </ol>
         <div className="flex flex-wrap items-center gap-2">
@@ -121,7 +122,7 @@ export function AdminIntegrationsPage() {
         </div>
         {testAi.data && (
           <Alert variant={testAi.data.ok ? 'info' : 'destructive'}>
-            {testAi.data.ok ? `Berhasil — balasan Claude: "${testAi.data.reply}"` : testAi.data.error}
+            {testAi.data.ok ? `Berhasil. Balasan Gemini: "${testAi.data.reply}"` : testAi.data.error}
           </Alert>
         )}
       </Section>

@@ -39,7 +39,7 @@ export async function insights(userId: bigint, period: Insights['period']): Prom
       source: true,
       status: true,
       appliedAt: true,
-      history: { select: { toStatus: true, changedAt: true }, orderBy: { changedAt: 'asc' } },
+      history: { select: { fromStatus: true, toStatus: true, changedAt: true }, orderBy: { changedAt: 'asc' } },
     },
   });
 
@@ -64,9 +64,12 @@ export async function insights(userId: bigint, period: Insights['period']): Prom
     if (didRespond) s.responded++;
     sourceStats.set(a.source, s);
 
-    const firstResponse = a.history.find((h) => responded.has(h.toStatus));
+    // Waktu respons hanya dari perubahan status sungguhan. Lamaran yang langsung dibuat/diimpor
+    // sebagai Interview tidak punya tanggal respons yang diketahui.
+    const changes = a.history.filter((h) => h.fromStatus !== null);
+    const firstResponse = changes.find((h) => responded.has(h.toStatus));
     if (firstResponse) daysToResponse.push(Math.max(0, Math.round((firstResponse.changedAt.getTime() - a.appliedAt.getTime()) / DAY)));
-    const firstInterview = a.history.find((h) => (RANK[h.toStatus as Status] ?? 0) >= 2);
+    const firstInterview = changes.find((h) => (RANK[h.toStatus as Status] ?? 0) >= 2);
     if (firstInterview) daysToInterview.push(Math.max(0, Math.round((firstInterview.changedAt.getTime() - a.appliedAt.getTime()) / DAY)));
 
     if (a.status === 'applied' && a.appliedAt <= staleCutoff) stale++;
@@ -118,7 +121,7 @@ export async function insights(userId: bigint, period: Insights['period']): Prom
       id: 'stale',
       tone: 'warning',
       title: `${stale} lamaran belum ada kabar lebih dari ${STALE_DAYS} hari`,
-      detail: 'Kirim follow-up singkat ke rekruter — banyak perusahaan merespons setelah diingatkan.',
+      detail: 'Kirim follow-up singkat ke rekruter. Banyak perusahaan baru merespons setelah diingatkan.',
     });
   }
 
@@ -141,7 +144,7 @@ export async function insights(userId: bigint, period: Insights['period']): Prom
       title: `Target mingguan tercapai ${hit} dari 4 minggu terakhir`,
       detail:
         hit >= 3
-          ? 'Konsistensi yang bagus — pertahankan ritmenya.'
+          ? 'Konsistensi yang bagus. Pertahankan ritmenya.'
           : `Coba bagi target ${weekly.goal} lamaran menjadi 1–2 lamaran per hari kerja.`,
     });
   }

@@ -3,34 +3,34 @@
 
 :root {
   --radius: 0.875rem;
-  --background: #eceef5;
-  --foreground: #11142d;
+  --background: #f1f5f9;
+  --foreground: #0f172a;
   --card: #ffffff;
-  --card-foreground: #11142d;
+  --card-foreground: #0f172a;
   --popover: #ffffff;
-  --popover-foreground: #11142d;
-  --primary: #3d5af1;
+  --popover-foreground: #0f172a;
+  --primary: #1d4ed8;
   --primary-foreground: #ffffff;
-  --secondary: #f3f4f9;
-  --secondary-foreground: #11142d;
-  --muted: #f3f4f9;
-  --muted-foreground: #6b7185;
-  --accent: #eef1fe;
-  --accent-foreground: #2b3fd0;
-  --destructive: #d93636;
+  --secondary: #f1f5f9;
+  --secondary-foreground: #0f172a;
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+  --accent: #eff6ff;
+  --accent-foreground: #1e40af;
+  --destructive: #dc2626;
   --destructive-foreground: #ffffff;
-  --border: #e6e8f0;
-  --input: #dfe2ec;
-  --ring: #3d5af1;
+  --border: #e2e8f0;
+  --input: #cbd5e1;
+  --ring: #1d4ed8;
 
   /* Warna chart (divalidasi untuk CVD & kontras, lihat dataviz validator) */
-  --chart-applied: #93a3f5;
-  --chart-responded: #3d5af1;
-  --chart-active: #3d5af1;
+  --chart-applied: #93c5fd;
+  --chart-responded: #1d4ed8;
+  --chart-active: #1d4ed8;
   --chart-offer: #1baf7a;
   --chart-rejected: #e34948;
-  --chart-track: #eef0f6;
-  --chart-grid: #e8eaf1;
+  --chart-track: #eef2f7;
+  --chart-grid: #e2e8f0;
 }
 
 @theme inline {
@@ -67,6 +67,20 @@
   }
   body {
     @apply bg-background font-sans text-foreground antialiased;
+    /* viewport-fit=cover: hindari konten tertutup notch/status bar (mis. saat dipasang sebagai aplikasi). */
+    padding-top: env(safe-area-inset-top);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+  /* Mode aplikasi (PWA): tidak ada seleksi teks tak sengaja saat tekan-tahan kartu & tombol. */
+  @media (display-mode: standalone) {
+    button,
+    [role='button'],
+    nav a {
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-touch-callout: none;
+    }
   }
   :focus-visible {
     @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;

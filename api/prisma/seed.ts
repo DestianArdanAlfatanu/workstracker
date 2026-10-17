@@ -40,7 +40,9 @@ async function seedAccounts() {
     },
   });
 
-  for (const b of SAMPLE_BUYERS) {
+  const plans = ['basic', 'standard', 'premium'] as const;
+  for (const [i, b] of SAMPLE_BUYERS.entries()) {
+    const plan = plans[i % plans.length];
     const license = { whatsapp: b.whatsapp, purchasedAt: date(-b.daysAgo), price: b.price, notes: 'Data contoh' };
     await prisma.user.upsert({
       where: { email: b.email },
@@ -51,6 +53,8 @@ async function seedAccounts() {
         passwordHash: hash,
         status: b.suspended ? 'suspended' : 'active',
         emailReminders: false,
+        plan,
+        aiCredits: plan === 'premium' ? 150 : 0,
         lastLoginAt: b.suspended ? null : new Date(Date.now() - b.daysAgo * 0.2 * day),
         license: { create: license },
       },
@@ -73,7 +77,7 @@ async function main() {
     },
   });
   await seedSampleWorkspace(user.id, prisma);
-  await prisma.user.update({ where: { id: user.id }, data: { aiEnabled: true, aiMonthlyLimit: 30 } });
+  await prisma.user.update({ where: { id: user.id }, data: { plan: 'premium', aiCredits: 150 } });
 
   const admin = await prisma.user.findUniqueOrThrow({ where: { email: 'admin@workstracker.local' } });
   await prisma.announcement.deleteMany({ where: { createdById: admin.id } });

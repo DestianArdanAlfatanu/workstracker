@@ -1,4 +1,5 @@
 import { logger } from '../lib/logger';
+import { runDailyPush } from '../services/push.service';
 import { runDailyReminders } from '../services/reminder.service';
 
 const INTERVAL_MS = 15 * 60 * 1000;
@@ -9,6 +10,12 @@ async function tick() {
     if (sent > 0) logger.info({ sent }, 'Pengingat email harian terkirim');
   } catch (err) {
     logger.error({ err }, 'Job pengingat email gagal');
+  }
+  try {
+    const pushed = await runDailyPush();
+    if (pushed > 0) logger.info({ pushed }, 'Pengingat push harian terkirim');
+  } catch (err) {
+    logger.error({ err }, 'Job pengingat push gagal');
   }
 }
 

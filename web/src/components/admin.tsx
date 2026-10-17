@@ -1,20 +1,27 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
   adminCreateUserSchema,
+  PLAN_KEYS,
+  PLANS,
+  planRank,
+  TOPUPS,
   todayISO,
+  upgradePrice,
   type AdminCreateUserInput,
   type AdminCredentials,
   type AdminUser,
+  type Plan,
 } from '@wt/shared';
-import { Check, Copy, KeyRound, MessageCircle, Sparkles, TriangleAlert } from 'lucide-react';
+import { ArrowUpCircle, Check, Coins, Copy, KeyRound, MessageCircle, TriangleAlert } from 'lucide-react';
 import { useEffect, useId, useState, type ReactNode } from 'react';
 import { useForm, type Resolver } from 'react-hook-form';
 import { toast } from 'sonner';
 import { ApiError } from '@/lib/api';
-import { formatThousands } from '@/lib/format';
-import { useCreateBuyer, useSetBuyerAi, useUpdateBuyer } from '@/lib/queries';
+import { formatDate, formatRupiah, formatThousands } from '@/lib/format';
+import { useAddBuyerCredits, useBuyerPurchases, useCreateBuyer, useSetBuyerPlan, useUpdateBuyer } from '@/lib/queries';
 import { cn } from '@/lib/utils';
 import { errorMessage } from './application-ui';
+import { PlanBadge } from './plan';
 import { Alert } from './ui/alert';
 import {
   AlertDialog,
@@ -36,6 +43,7 @@ import { Label } from './ui/label';
 type BuyerFormValues = {
   name: string;
   email: string;
+  plan: Plan;
   whatsapp: string;
   purchasedAt: string;
   price: string;
@@ -48,9 +56,10 @@ function toFormValues(u: AdminUser | null): BuyerFormValues {
   return {
     name: u?.name ?? '',
     email: u?.email ?? '',
+    plan: u?.plan ?? 'standard',
     whatsapp: u?.license?.whatsapp ?? '',
     purchasedAt: u?.license?.purchasedAt ?? todayISO(),
-    price: u?.license?.price != null ? formatThousands(String(u.license.price)) : '',
+    price: u?.license?.price != null ? formatThousands(String(u.license.price)) : u ? '' : formatThousands(String(PLANS.standard.price)),
     notes: u?.license?.notes ?? '',
   };
 }
@@ -76,8 +85,10 @@ export function BuyerFormDialog({
     reset,
     setError,
     setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<BuyerFormValues>({ resolver, defaultValues: toFormValues(null) });
+  const plan = watch('plan');
 
   useEffect(() => {
     if (!open) return;
@@ -121,6 +132,21 @@ export function BuyerFormDialog({
         </DialogHeader>
         <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
           {formError && <Alert variant="destructive">{formError}</Alert>}
+          {!isEdit && (
+            <fieldset className="flex flex-col gap-1.5">
+              <legend className="mb-1.5 text-sm font-medium">Paket</legend>
+              <PlanPicker
+                value={plan}
+                onChange={(p) => {
+                  setValue('plan', p, { shouldDirty: true });
+                  setValue('price', formatThousands(String(PLANS[p].price)), { shouldDirty: true });
+                }}
+              />
+              {plan === 'premium' && (
+                <p className="text-xs text-muted-foreground">Termasuk {PLANS.premium.credits} kredit AI.</p>
+              )}
+            </fieldset>
+          )}
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Nama" required error={errors.name?.message}>
               {(p) => <Input {...p} autoFocus placeholder="mis. Rina Kartika" {...register('name')} />}
@@ -139,7 +165,7 @@ export function BuyerFormDialog({
                 <Input
                   {...p}
                   inputMode="numeric"
-                  placeholder="49.000"
+                  placeholder="24.999"
                   {...register('price', {
                     onChange: (e) => setValue('price', formatThousands(e.target.value), { shouldDirty: true }),
                   })}
@@ -206,7 +232,7 @@ function Field({
 export function credentialsMessage(creds: AdminCredentials, loginUrl: string, isReset: boolean) {
   const first = creds.user.name.split(' ')[0];
   return [
-    `Halo ${first}! ${isReset ? 'Password akun WorksTracker kamu sudah di-reset.' : 'Akun WorksTracker kamu sudah aktif 🎉'}`,
+    `Halo ${first}! ${isReset ? 'Password akun WorksTracker kamu sudah di-reset.' : 'Akun WorksTracker kamu sudah aktif.'}`,
     '',
     `Login: ${loginUrl}`,
     `Email: ${creds.user.email}`,
@@ -353,29 +379,170 @@ export function DeleteBuyerDialog({
 }
 
 /* ------------------------------------------------------------------ */
-/* Pengaturan add-on AI per pembeli                                    */
+/* Paket & kredit AI per pembeli                                       */
 /* ------------------------------------------------------------------ */
 
-export function AiSettingsDialog({ buyer, onOpenChange }: { buyer: AdminUser | null; onOpenChange: (open: boolean) => void }) {
-  const setAi = useSetBuyerAi();
-  const [enabled, setEnabled] = useState(false);
-  const [limit, setLimit] = useState('30');
-  const id = useId();
+function PlanPicker({ value, onChange, current }: { value: Plan; onChange: (p: Plan) => void; current?: Plan }) {
+  return (
+    <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Paket">
+      {PLAN_KEYS.map((p) => (
+        <button
+          key={p}
+          type="button"
+          role="radio"
+          aria-checked={value === p}
+          disabled={current === p}
+          onClick={() => onChange(p)}
+          className={cn(
+            'flex flex-col items-start rounded-xl border px-3 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50',
+            value === p ? 'border-primary bg-accent ring-1 ring-primary' : 'hover:bg-muted',
+          )}
+        >
+          <span className="text-sm font-semibold">{PLANS[p].name}</span>
+          <span className="text-xs text-muted-foreground">{formatRupiah(PLANS[p].price)}</span>
+          {current === p && <span className="text-[10px] font-semibold text-muted-foreground">Paket sekarang</span>}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+const toNumber = (v: string) => Number(v.replace(/\D/g, '')) || 0;
+
+function PurchaseHistory({ buyerId }: { buyerId: number }) {
+  const { data } = useBuyerPurchases(buyerId);
+  if (!data?.length) return null;
+  return (
+    <div className="flex flex-col gap-1.5">
+      <p className="text-xs font-semibold text-muted-foreground">Riwayat upgrade & isi ulang</p>
+      <ul className="max-h-32 divide-y overflow-y-auto rounded-xl border text-xs">
+        {data.map((p) => (
+          <li key={p.id} className="flex items-center justify-between gap-2 px-3 py-1.5">
+            <span>
+              {formatDate(p.paidAt)} ·{' '}
+              {p.kind === 'upgrade' ? `Paket ${p.plan ? PLANS[p.plan].name : ''}` : `Isi ulang ${p.credits} kredit`}
+            </span>
+            <span className="font-medium tabular-nums">{formatRupiah(p.price)}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+export function PlanDialog({ buyer, onOpenChange }: { buyer: AdminUser | null; onOpenChange: (open: boolean) => void }) {
+  const setPlan = useSetBuyerPlan();
+  const [plan, setPlanValue] = useState<Plan>('premium');
+  const [price, setPrice] = useState('');
+  const [paidAt, setPaidAt] = useState(todayISO());
+  const [notes, setNotes] = useState('');
+  const ids = { price: useId(), date: useId(), notes: useId() };
 
   useEffect(() => {
-    if (buyer) {
-      setEnabled(buyer.aiEnabled);
-      setLimit(String(buyer.aiMonthlyLimit));
-    }
+    if (!buyer) return;
+    const next = PLAN_KEYS.find((p) => planRank(p) > planRank(buyer.plan)) ?? 'basic';
+    setPlanValue(next);
+    setPrice(formatThousands(String(upgradePrice(buyer.plan, next))));
+    setPaidAt(todayISO());
+    setNotes('');
   }, [buyer]);
+
+  const choose = (p: Plan) => {
+    setPlanValue(p);
+    if (buyer) setPrice(formatThousands(String(upgradePrice(buyer.plan, p))));
+  };
 
   const save = () => {
     if (!buyer) return;
-    setAi.mutate(
-      { id: buyer.id, input: { aiEnabled: enabled, aiMonthlyLimit: Number(limit) || 0 } },
+    setPlan.mutate(
+      { id: buyer.id, input: { plan, price: toNumber(price), paidAt, notes } },
       {
         onSuccess: (u) => {
-          toast.success(u.aiEnabled ? `AI aktif untuk ${u.name} (${u.aiMonthlyLimit}/bulan)` : `AI dinonaktifkan untuk ${u.name}`);
+          toast.success(`${u.name} sekarang paket ${PLANS[u.plan].name}`);
+          onOpenChange(false);
+        },
+        onError: (e) => toast.error(errorMessage(e)),
+      },
+    );
+  };
+
+  const upgrade = buyer ? planRank(plan) > planRank(buyer.plan) : false;
+  const grant = buyer && upgrade ? Math.max(0, PLANS[plan].credits - PLANS[buyer.plan].credits) : 0;
+
+  return (
+    <Dialog open={buyer !== null} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <ArrowUpCircle className="size-5 text-primary" aria-hidden />
+            Ubah paket
+          </DialogTitle>
+          <DialogDescription className="flex items-center gap-1.5">
+            {buyer?.name} · sekarang {buyer && <PlanBadge plan={buyer.plan} />}
+          </DialogDescription>
+        </DialogHeader>
+        {buyer && (
+          <div className="flex flex-col gap-4">
+            <PlanPicker value={plan} onChange={choose} current={buyer.plan} />
+            {grant > 0 && <p className="text-xs text-muted-foreground">Upgrade ini menambah {grant} kredit AI.</p>}
+            {!upgrade && (
+              <p className="text-xs text-muted-foreground">Turun paket: fitur di atas paket baru terkunci; sisa kredit tetap tersimpan.</p>
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor={ids.price}>Dibayar (Rp)</Label>
+                <Input id={ids.price} inputMode="numeric" value={price} onChange={(e) => setPrice(formatThousands(e.target.value))} />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor={ids.date}>Tanggal bayar</Label>
+                <Input id={ids.date} type="date" max={todayISO()} value={paidAt} onChange={(e) => setPaidAt(e.target.value)} />
+              </div>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={ids.notes}>Catatan</Label>
+              <Input id={ids.notes} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="mis. Transfer BCA" />
+            </div>
+            <PurchaseHistory buyerId={buyer.id} />
+          </div>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Batal
+          </Button>
+          <Button loading={setPlan.isPending} onClick={save}>
+            Simpan paket
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export function CreditsDialog({ buyer, onOpenChange }: { buyer: AdminUser | null; onOpenChange: (open: boolean) => void }) {
+  const addCredits = useAddBuyerCredits();
+  const [credits, setCredits] = useState('');
+  const [price, setPrice] = useState('');
+  const [paidAt, setPaidAt] = useState(todayISO());
+  const [notes, setNotes] = useState('');
+  const ids = { credits: useId(), price: useId(), date: useId(), notes: useId() };
+
+  useEffect(() => {
+    if (!buyer) return;
+    const pack = TOPUPS[TOPUPS.length - 1];
+    setCredits(String(pack.credits));
+    setPrice(formatThousands(String(pack.price)));
+    setPaidAt(todayISO());
+    setNotes('');
+  }, [buyer]);
+
+  const amount = Number(credits) || 0;
+  const save = () => {
+    if (!buyer) return;
+    addCredits.mutate(
+      { id: buyer.id, input: { credits: amount, price: amount > 0 ? toNumber(price) : 0, paidAt, notes } },
+      {
+        onSuccess: (u) => {
+          toast.success(`Saldo kredit ${u.name}: ${u.aiCredits}`);
           onOpenChange(false);
         },
         onError: (e) => toast.error(errorMessage(e)),
@@ -388,30 +555,71 @@ export function AiSettingsDialog({ buyer, onOpenChange }: { buyer: AdminUser | n
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Sparkles className="size-5 text-primary" aria-hidden />
-            Add-on AI Career Assistant
+            <Coins className="size-5 text-primary" aria-hidden />
+            Kredit AI
           </DialogTitle>
           <DialogDescription>
-            {buyer?.name} · terpakai bulan ini: {buyer?.aiUsedThisMonth ?? 0} generate
+            {buyer?.name} · saldo {buyer?.aiCredits ?? 0} kredit · terpakai bulan ini {buyer?.aiCreditsUsedThisMonth ?? 0}
           </DialogDescription>
         </DialogHeader>
-        <label className="flex items-center gap-2.5 text-sm font-medium">
-          <Checkbox checked={enabled} onCheckedChange={(v) => setEnabled(v === true)} />
-          Aktifkan AI untuk pembeli ini
-        </label>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor={id}>Batas generate per bulan</Label>
-          <Input id={id} type="number" min={0} max={1000} value={limit} onChange={(e) => setLimit(e.target.value)} className="w-32" disabled={!enabled} />
-          <p className="text-xs text-muted-foreground">
-            Estimasi biaya API ±Rp 1.000 per cover letter dan ±Rp 1.800 per persiapan interview (Claude Opus 5.5).
-          </p>
-        </div>
+        {buyer && (
+          <div className="flex flex-col gap-4">
+            {buyer.plan !== 'premium' && (
+              <Alert variant="warning">
+                <TriangleAlert aria-hidden />
+                Pembeli ini belum Premium, jadi kredit belum bisa dipakai. Ubah paket ke Premium terlebih dahulu.
+              </Alert>
+            )}
+            <div className="flex flex-wrap gap-2">
+              {TOPUPS.map((t) => (
+                <Button
+                  key={t.credits}
+                  type="button"
+                  size="sm"
+                  variant={amount === t.credits ? 'default' : 'outline'}
+                  onClick={() => {
+                    setCredits(String(t.credits));
+                    setPrice(formatThousands(String(t.price)));
+                  }}
+                >
+                  {t.credits} kredit · {formatRupiah(t.price)}
+                </Button>
+              ))}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor={ids.credits}>Jumlah kredit</Label>
+                <Input id={ids.credits} type="number" min={-1000} max={1000} value={credits} onChange={(e) => setCredits(e.target.value)} />
+                <p className="text-[11px] text-muted-foreground">Negatif = koreksi (tanpa pembayaran)</p>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor={ids.price}>Dibayar (Rp)</Label>
+                <Input
+                  id={ids.price}
+                  inputMode="numeric"
+                  disabled={amount <= 0}
+                  value={amount > 0 ? price : '0'}
+                  onChange={(e) => setPrice(formatThousands(e.target.value))}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor={ids.date}>Tanggal bayar</Label>
+                <Input id={ids.date} type="date" max={todayISO()} value={paidAt} onChange={(e) => setPaidAt(e.target.value)} />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor={ids.notes}>Catatan</Label>
+                <Input id={ids.notes} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="mis. Bonus / Transfer" />
+              </div>
+            </div>
+            <PurchaseHistory buyerId={buyer.id} />
+          </div>
+        )}
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Batal
           </Button>
-          <Button loading={setAi.isPending} onClick={save}>
-            Simpan
+          <Button loading={addCredits.isPending} disabled={amount === 0} onClick={save}>
+            {amount < 0 ? 'Kurangi kredit' : 'Tambah kredit'}
           </Button>
         </DialogFooter>
       </DialogContent>
