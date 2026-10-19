@@ -1,5 +1,5 @@
 import { AI_CREDIT_COST, PLAN_KEYS, PLANS, PREMIUM_CREDITS, TOPUPS, type Plan } from '@wt/shared';
-import { ArrowRight, ChevronDown } from 'lucide-react';
+import { ArrowRight, ChevronDown, ExternalLink } from 'lucide-react';
 import { useEffect, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode, type RefObject } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -7,7 +7,7 @@ import { LogoMark } from '@/components/brand';
 import { planHighlights } from '@/components/plan';
 import { ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { BUY_MESSAGE, buyPlanMessage, whatsappLink } from '@/lib/config';
+import { BUY_MESSAGE, buyPlanMessage, CHROME_EXTENSION_URL, whatsappLink } from '@/lib/config';
 import { formatRupiah } from '@/lib/format';
 import { usePaymentConfig } from '@/lib/payments';
 import { cn } from '@/lib/utils';
@@ -614,6 +614,12 @@ Kirim CV via WhatsApp ke 0812-xxxx-xxxx, paling lambat 10 Oktober 2026.
               ? 'Deskripsi lowongan ikut tersimpan. Batas melamar otomatis masuk kalender sebagai agenda.'
               : 'Bisa juga dari foto poster, hingga 4 gambar sekaligus. Gambar poster tidak disimpan di server.'}
           </p>
+          {tab === 'web' && (
+            <a href={CHROME_EXTENSION_URL} target="_blank" rel="noopener noreferrer" className="lp-btn lp-btn-ghost lp-btn-sm self-start">
+              <ExternalLink className="size-4" aria-hidden />
+              Pasang Chrome Extension
+            </a>
+          )}
         </div>
       </div>
     </section>

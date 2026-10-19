@@ -3,6 +3,11 @@ import { PLANS, type Plan } from '@wt/shared';
 /** Nomor WhatsApp admin untuk pembelian & bantuan (format internasional tanpa +). */
 export const ADMIN_WHATSAPP = (import.meta.env.VITE_ADMIN_WHATSAPP as string | undefined) || '6287796747329';
 
+/** Halaman Chrome Web Store extension WorksTracker (ID item tetap sama di setiap rilis). */
+export const CHROME_EXTENSION_URL =
+  (import.meta.env.VITE_CHROME_EXTENSION_URL as string | undefined) ||
+  'https://chromewebstore.google.com/detail/hfojbaffpajdpmpbpplhbblmbogpeeim';
+
 /** Harga termurah (paket Basic) untuk teks "mulai Rp …". */
 export const PRICE_FROM = PLANS.basic.price;
 

@@ -24,7 +24,7 @@ function manifest(wtUrl: string, e2eKey?: string): Plugin {
             short_name: 'WorksTracker',
             version: pkg.version,
             description:
-              'Simpan lowongan dari LinkedIn, Jobstreet, Glints, Kalibrr, Instagram, dan situs karier lain ke WorksTracker dengan satu klik.',
+              'Simpan lowongan kerja dari halaman yang sedang kamu buka ke WorksTracker. Data lowongan terisi otomatis, cukup satu klik.',
             action: { default_popup: 'popup.html', default_title: 'Simpan ke WorksTracker', default_icon: icons },
             icons,
             // activeTab: halaman hanya dibaca saat ikon diklik (tanpa izin "baca semua situs").

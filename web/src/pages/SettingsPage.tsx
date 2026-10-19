@@ -13,6 +13,7 @@ import { ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useSendTestReminder, useUpdatePreferences, useUpdateProfile } from '@/lib/queries';
 import { cn } from '@/lib/utils';
+import { ExtensionCard } from '@/components/ExtensionCard';
 import { MobileAppCard } from '@/components/MobileAppCard';
 import { PaymentHistoryCard } from '@/components/PaymentHistoryCard';
 import { PlanBadge, usePlan, useUpgradePrompt } from '@/components/plan';
@@ -103,6 +104,8 @@ export function SettingsPage() {
       <PreferencesCard />
 
       <MobileAppCard />
+
+      <ExtensionCard />
 
       <PaymentHistoryCard />
 

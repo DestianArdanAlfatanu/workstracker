@@ -148,7 +148,7 @@ try {
   await tile.setContent(`<!doctype html><html><body style="margin:0;width:440px;height:280px;overflow:hidden;background:#0f172a;color:#fff;font-family:Segoe UI,Arial,sans-serif;display:flex;flex-direction:column;justify-content:center;padding:0 36px;box-sizing:border-box">
     <div style="display:flex;align-items:center;gap:12px"><img src="${b64(readFileSync(resolve('public/icons/icon-128.png')))}" style="width:48px;height:48px;border-radius:12px"><span style="font-size:26px;font-weight:800;letter-spacing:-.03em">WorksTracker</span></div>
     <p style="font-size:24px;font-weight:800;line-height:1.15;letter-spacing:-.02em;margin:22px 0 8px">Simpan lowongan dengan satu klik.</p>
-    <p style="font-size:15px;color:#cbd5e1;margin:0">LinkedIn, Jobstreet, Glints, Instagram, dan situs karier.</p>
+    <p style="font-size:15px;color:#cbd5e1;margin:0">Data lowongan terisi otomatis, langsung tercatat.</p>
   </body></html>`);
   await tile.screenshot({ path: join(OUT, 'promo-440x280.png') });
 
