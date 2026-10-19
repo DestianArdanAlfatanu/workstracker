@@ -8,3 +8,6 @@ playwright-report/
 .DS_Store
 storage/
 e2e/.mail-preview/
+
+# Paket rilis extension (dibuat ulang dengan npm run zip -w extension)
+extension/*.zip

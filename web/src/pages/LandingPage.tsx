@@ -263,7 +263,7 @@ export function LandingPage() {
             <span className="font-extrabold tracking-[-0.035em]">WorksTracker</span>
           </span>
           <span>© {new Date().getFullYear()} WorksTracker</span>
-          <span className="flex gap-5">
+          <span className="flex flex-wrap gap-x-5 gap-y-2">
             {[
               ['#fitur', 'Fitur'],
               ['#harga', 'Harga'],
@@ -273,6 +273,9 @@ export function LandingPage() {
                 {label}
               </a>
             ))}
+            <Link to="/privasi" className="text-[#CBD5E1] no-underline transition-colors hover:text-white">
+              Privasi
+            </Link>
             <Link to="/login" className="text-[#CBD5E1] no-underline transition-colors hover:text-white">
               Masuk
             </Link>

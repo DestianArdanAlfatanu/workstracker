@@ -48,11 +48,35 @@ Extension tidak punya halaman login sendiri.
 
 Setelah mengubah kode, jalankan build lagi lalu klik ⟳ (reload) pada kartu extension di `chrome://extensions`.
 
-## Rilis ke Chrome Web Store (setelah website online)
+## Rilis ke Chrome Web Store
 
-1. Build dengan alamat asli: `VITE_WT_URL=https://domain-anda.com npm run zip -w extension`. Hasilnya `extension/workstracker-extension-<versi>.zip`.
-2. Daftar di Chrome Web Store Developer Dashboard (biaya sekali $5), lalu unggah ZIP. Lengkapi deskripsi, screenshot, dan **kebijakan privasi**: data yang dikirim hanya isi halaman lowongan yang dibuka user, ke server WorksTracker.
-3. Naikkan `version` di `extension/package.json` setiap rilis.
+Domain produksi: `https://workstracker.techworksnesia.com`. Akun developer Chrome Web Store dibayar sekali (US$5). Bahan listing ada di `store/`:
+- `listing.md`: teks siap salin (deskripsi, single purpose, alasan izin, jawaban privasi).
+- Gambar: screenshot 1280×800 dan promo tile 440×280. Untuk membuat ulang, jalankan `node scripts/store-screenshots.mjs` saat localhost menyala.
+
+1. **ZIP rilis** (PowerShell, dari root repo): `$env:VITE_WT_URL='https://workstracker.techworksnesia.com'; npm run zip -w extension`.
+   - Hasilnya `extension/workstracker-extension-<versi>.zip`.
+   - Setelah itu jalankan `npm run build -w extension` lagi agar `dist` kembali ke localhost untuk uji lokal.
+2. **Uji ZIP** sebelum diunggah:
+   - Ekstrak ZIP, lalu Load unpacked di `chrome://extensions`.
+   - Login di website produksi, lalu simpan satu lowongan.
+3. **Developer Dashboard** (https://chrome.google.com/webstore/devconsole):
+   - Akun Google wajib memakai Verifikasi 2 Langkah.
+   - Lengkapi profil penerbit: nama, email kontak terverifikasi, status Non-trader.
+4. **New item**, lalu unggah ZIP. Isi bagian berikut dari `store/listing.md`:
+   - **Store listing**: deskripsi, kategori, bahasa, ikon `public/icons/icon-128.png`, screenshot, promo tile.
+   - **Privacy practices**: single purpose, alasan izin, tanpa remote code, data usage, URL privasi `/privasi`.
+   - **Distribution**: gratis, Public atau Unlisted.
+5. **Submit for review.** Hasilnya dikirim lewat email.
+
+**Update berikutnya:**
+1. Naikkan `version` di `extension/package.json`.
+2. Buat ZIP lagi dengan langkah 1.
+3. Di item yang sama pilih Package > Upload new package > Submit for review.
+
+Pengguna akan mendapat update otomatis.
+
+Opsional dan gratis: ZIP yang sama bisa diunggah ke Microsoft Edge Add-ons (https://partner.microsoft.com/dashboard/microsoftedge).
 
 ## Tes
 

@@ -41,7 +41,9 @@ npm run admin:create -w api -- --email kamu@domain.com --name "Nama Kamu"
 
 ## 6. Chrome Extension
 
-- [ ] Build dengan `VITE_WT_URL=https://<domain>`, daftarkan ke Chrome Web Store (lihat `extension/README.md`).
+- [ ] Halaman `https://<domain>/privasi` bisa dibuka (wajib untuk Chrome Web Store).
+- [ ] Buat ZIP rilis: `$env:VITE_WT_URL='https://<domain>'; npm run zip -w extension`. Cek `host_permissions` di manifest berisi domain asli.
+- [ ] Unggah ke Chrome Web Store memakai teks dan gambar di `extension/store/` (langkah lengkap di `extension/README.md`).
 
 ## 7. Setelah rilis
 

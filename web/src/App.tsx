@@ -17,6 +17,7 @@ import { CvPage } from './pages/CvPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { InsightPage } from './pages/InsightPage';
 import { LandingPage } from './pages/LandingPage';
+import { PrivacyPage } from './pages/PrivacyPage';
 import { CheckoutPage, PaymentStatusPage } from './pages/PaymentPages';
 import { SettingsPage } from './pages/SettingsPage';
 import { SharePage } from './pages/SharePage';
@@ -88,6 +89,7 @@ export function App() {
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/register" element={<Navigate to="/login" replace />} />
       {/* Pembelian & status pembayaran: bisa dibuka tanpa login. */}
+      <Route path="/privasi" element={<PrivacyPage />} />
       <Route path="/beli/:plan" element={<CheckoutPage />} />
       <Route path="/pembayaran/:orderId" element={<PaymentStatusPage />} />
       <Route path="/ganti-password" element={<RequirePasswordChange><ChangePasswordPage /></RequirePasswordChange>} />
