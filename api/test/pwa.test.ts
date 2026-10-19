@@ -17,7 +17,7 @@ beforeEach(async () => {
 afterEach(() => vi.restoreAllMocks());
 afterAll(() => setPushSender(null));
 
-const sub = (n: string) => ({ endpoint: `https://push.example.net/${n}`, keys: { p256dh: 'p256dh-key-untuk-tes-1234567890', auth: 'auth-key-123' } });
+const sub = (n: string) => ({ endpoint: `https://fcm.googleapis.com/fcm/send/${n}`, keys: { p256dh: 'p256dh-key-untuk-tes-1234567890', auth: 'auth-key-123' } });
 
 describe('push notification', () => {
   it('berlangganan per perangkat, kirim uji, berhenti; paket Basic & demo ditolak', async () => {
@@ -33,6 +33,7 @@ describe('push notification', () => {
     await request(app).post(`${API}/push/subscriptions`).set(auth).send(sub('hp')).expect(201);
     expect(await prisma.pushSubscription.count()).toBe(2);
     await request(app).post(`${API}/push/subscriptions`).set(auth).send({ endpoint: 'http://tidak-aman', keys: { p256dh: 'x', auth: 'y' } }).expect(400);
+    await request(app).post(`${API}/push/subscriptions`).set(auth).send({ ...sub('ssrf'), endpoint: 'https://internal.example.net/x' }).expect(400);
 
     const test = await request(app).post(`${API}/push/test`).set(auth).expect(200);
     expect(test.body.data.delivered).toBe(2);
