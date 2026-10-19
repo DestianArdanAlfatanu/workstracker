@@ -392,7 +392,7 @@ let provider: AiProvider | null = null;
 
 export function getAiProvider(): AiProvider {
   if (provider) return provider;
-  if (process.env.AI_FAKE === '1') {
+  if (process.env.AI_FAKE === '1' && process.env.NODE_ENV !== 'production') {
     logger.warn('AI_FAKE=1: memakai provider AI palsu');
     provider = new FakeAiProvider();
   } else if (apiKey()) {

@@ -1,6 +1,7 @@
 import { checkoutSchema, meCheckoutSchema, paymentListQuerySchema, type PaymentListQuery } from '@wt/shared';
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
+import { env } from '../lib/env';
 import { asyncHandler, sendError } from '../lib/http';
 import { blockDemo, currentUserId, requireAdmin, requireAuth } from '../middlewares/auth';
 import { validate } from '../middlewares/validate';
@@ -66,12 +67,15 @@ export function paymentRoutes() {
     }),
   );
   // Mode simulasi (PAYMENT_FAKE=1, bukan production): tandai pesanan lunas.
-  router.post(
-    '/payments/simulate/:orderId',
-    asyncHandler(async (req, res) => {
-      res.json({ data: await payments.simulatePay(String(req.params.orderId)) });
-    }),
-  );
+  // Route tidak dipasang sama sekali di production, selain pengecekan di service.
+  if (!env.isProd) {
+    router.post(
+      '/payments/simulate/:orderId',
+      asyncHandler(async (req, res) => {
+        res.json({ data: await payments.simulatePay(String(req.params.orderId)) });
+      }),
+    );
+  }
 
   router.get(
     '/admin/payments',
