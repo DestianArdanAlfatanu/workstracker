@@ -50,7 +50,7 @@ Setelah mengubah kode, jalankan build lagi lalu klik ⟳ (reload) pada kartu ext
 
 ## Rilis ke Chrome Web Store
 
-Domain produksi: `https://workstracker.techworksnesia.com`. Akun developer Chrome Web Store dibayar sekali (US$5). Bahan listing ada di `store/`:
+Domain produksi: `https://workstracker.techworksnesia.com`. ID item Store: `hfojbaffpajdpmpbpplhbblmbogpeeim` (link setelah terbit: `https://chromewebstore.google.com/detail/hfojbaffpajdpmpbpplhbblmbogpeeim`). Akun developer Chrome Web Store dibayar sekali (US$5). Bahan listing ada di `store/`:
 - `listing.md`: teks siap salin (deskripsi, single purpose, alasan izin, jawaban privasi).
 - Gambar: screenshot 1280×800 dan promo tile 440×280. Untuk membuat ulang, jalankan `node scripts/store-screenshots.mjs` saat localhost menyala.
 
