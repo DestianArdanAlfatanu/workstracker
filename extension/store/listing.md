@@ -12,11 +12,14 @@ Gambar ada di folder ini. Untuk membuat ulang gambar: `node scripts/store-screen
 
 **Nama** (dari manifest, otomatis): WorksTracker: Simpan Lowongan
 
-**Ringkasan** (otomatis dari `description` manifest, 125 dari maks. 132 karakter):
+**Ringkasan** (otomatis dari `description` manifest, 121 dari maks. 132 karakter):
 
 ```
-Simpan lowongan dari LinkedIn, Jobstreet, Glints, Kalibrr, Instagram, dan situs karier lain ke WorksTracker dengan satu klik.
+Simpan lowongan kerja dari halaman yang sedang kamu buka ke WorksTracker. Data lowongan terisi otomatis, cukup satu klik.
 ```
+
+> Versi 1.0.0 ditolak dengan kode **Yellow Argon (spam kata kunci)** karena deskripsi berisi daftar nama portal lowongan.
+> Jangan menulis daftar nama portal atau situs di deskripsi, ringkasan, maupun gambar promosi.
 
 **Deskripsi lengkap:**
 
@@ -25,8 +28,8 @@ WorksTracker membantu kamu mencatat semua lamaran kerja di satu tempat. Extensio
 
 Yang bisa dilakukan:
 - Mengisi otomatis perusahaan, posisi, lokasi, gaji, tipe kerja, batas melamar, dan deskripsi dari halaman lowongan.
-- Mendukung LinkedIn, Jobstreet, Glints, Dealls, Kalibrr, KitaLulus, Loker.id, Indeed, Karirhub Kemnaker, dan situs karier perusahaan.
-- Loker dari Instagram: akun pengunggah, caption, dan link terbaca. Pengguna paket Premium bisa mengisi data dari poster di layar dengan AI.
+- Bekerja di portal lowongan kerja populer di Indonesia dan di situs karier perusahaan.
+- Bisa juga menyimpan loker yang diunggah di media sosial. Pengguna paket Premium bisa mengisi data dari poster di layar dengan AI.
 - Pilih langsung status Wishlist atau Applied, dan CV yang dipakai.
 - Memberi peringatan bila lowongan yang sama sudah pernah disimpan.
 - Batas melamar otomatis masuk ke agenda pengingat.
