@@ -4,12 +4,22 @@ function required(name: string): string {
   return value;
 }
 
+const MIN_PROD_SECRET_LENGTH = 32;
+
+function jwtSecret(): string {
+  const value = required('JWT_ACCESS_SECRET');
+  if (process.env.NODE_ENV === 'production' && (value.length < MIN_PROD_SECRET_LENGTH || value === 'change-me')) {
+    throw new Error(`JWT_ACCESS_SECRET terlalu lemah untuk production (minimal ${MIN_PROD_SECRET_LENGTH} karakter acak)`);
+  }
+  return value;
+}
+
 export const env = {
   nodeEnv: process.env.NODE_ENV ?? 'development',
   isProd: process.env.NODE_ENV === 'production',
   isTest: process.env.NODE_ENV === 'test',
   port: Number(process.env.PORT ?? 4000),
-  jwtAccessSecret: required('JWT_ACCESS_SECRET'),
+  jwtAccessSecret: jwtSecret(),
   corsOrigins: (process.env.CORS_ORIGINS ?? '')
     .split(',')
     .map((s) => s.trim())

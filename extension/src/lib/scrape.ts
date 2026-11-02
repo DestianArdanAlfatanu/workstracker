@@ -97,9 +97,8 @@ export function scrapePage(doc: Document = document, href: string = location.hre
   };
   const htmlToText = (html: unknown) => {
     if (typeof html !== 'string' || !html.trim()) return null;
-    const box = doc.createElement('div');
-    box.innerHTML = html;
-    return blockText(box);
+    // DOMParser menghasilkan dokumen inert: skrip dan handler seperti onerror tidak dijalankan.
+    return blockText(new DOMParser().parseFromString(html, 'text/html').body);
   };
 
   const workTypeOf = (s: string | null | undefined): ScrapeResult['workType'] => {

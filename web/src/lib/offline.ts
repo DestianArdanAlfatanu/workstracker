@@ -31,7 +31,7 @@ export const shouldPersistQuery = (q: Query) =>
 
 export function rememberUser(user: User) {
   try {
-    storage?.setItem(USER_KEY, JSON.stringify(user));
+    storage?.setItem(USER_KEY, JSON.stringify({ user, savedAt: Date.now() }));
   } catch {
     /* penuh / diblokir */
   }
@@ -40,7 +40,14 @@ export function rememberUser(user: User) {
 export function lastUser(): User | null {
   try {
     const raw = storage?.getItem(USER_KEY);
-    return raw ? (JSON.parse(raw) as User) : null;
+    if (!raw) return null;
+    const saved = JSON.parse(raw) as { user?: User; savedAt?: number };
+    // Data lama tanpa waktu simpan, atau lebih tua dari batas offline: jangan dipakai lagi di perangkat ini.
+    if (!saved.user || typeof saved.savedAt !== 'number' || Date.now() - saved.savedAt > OFFLINE_MAX_AGE) {
+      forgetOfflineData();
+      return null;
+    }
+    return saved.user;
   } catch {
     return null;
   }

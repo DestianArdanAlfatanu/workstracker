@@ -262,9 +262,21 @@ export const preferencesSchema = z
   .partial();
 export type PreferencesInput = z.input<typeof preferencesSchema>;
 
+/** Host layanan push browser (FCM, Mozilla, Apple, Microsoft). Endpoint lain ditolak agar server tidak dipakai untuk SSRF. */
+const PUSH_SERVICE_HOSTS = [/^fcm\.googleapis\.com$/, /^updates\.push\.services\.mozilla\.com$/, /\.push\.apple\.com$/, /\.notify\.windows\.com$/];
+
+function isPushServiceUrl(u: string): boolean {
+  try {
+    const url = new URL(u);
+    return url.protocol === 'https:' && PUSH_SERVICE_HOSTS.some((re) => re.test(url.hostname));
+  } catch {
+    return false;
+  }
+}
+
 /** Langganan Web Push dari browser (PushSubscription.toJSON()). */
 export const pushSubscriptionSchema = z.object({
-  endpoint: z.string().url('Endpoint tidak valid').max(2000).refine((u) => u.startsWith('https://'), 'Endpoint harus https'),
+  endpoint: z.string().url('Endpoint tidak valid').max(2000).refine(isPushServiceUrl, 'Endpoint push tidak dikenal'),
   keys: z.object({ p256dh: z.string().min(16).max(255), auth: z.string().min(8).max(100) }),
 });
 export type PushSubscriptionInput = z.input<typeof pushSubscriptionSchema>;

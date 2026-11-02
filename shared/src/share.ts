@@ -60,7 +60,7 @@ export function guessFromTitle(raw: string | null | undefined): ShareGuess {
 /** Pecah data dari menu Share: judul, teks, dan link (link kadang ada di dalam teks). */
 export function parseSharedJob(input: { title?: string | null; text?: string | null; url?: string | null }): SharedJob {
   const rawUrl = clean(input.url) ?? firstUrlIn(input.text ?? '') ?? firstUrlIn(input.title ?? '');
-  const url = rawUrl ? (normalizeJobUrl(rawUrl) ?? rawUrl) : null;
+  const url = rawUrl ? normalizeJobUrl(rawUrl) : null;
   const text = clean((input.text ?? '').replace(rawUrl ?? '\u0000', '').replace(/https?:\/\/\S+/g, ''));
   // Teks share aplikasi LinkedIn: "Check out this job at PT X: Frontend Engineer" / "Lihat pekerjaan ini di PT X: ..."
   const plain = (input.text ?? '').replace(/https?:\/\/\S+/g, '\n');
