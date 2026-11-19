@@ -16,7 +16,7 @@ import ExcelJS from 'exceljs';
 import { AppError } from '../lib/http';
 import { prisma } from '../lib/prisma';
 import { toISODate } from '../lib/serialize';
-import { toApplicationData } from './applications.service';
+import { clearDeadlineAgenda, toApplicationData } from './applications.service';
 
 const MAX_COLUMNS = 60;
 
@@ -130,7 +130,7 @@ export async function commit(userId: bigint, input: ImportCommitInput): Promise<
       for (const { data } of valid) {
         // CV tidak dipasang otomatis: lamaran lama belum tentu memakai CV yang sekarang.
         const app = await tx.application.create({
-          data: { ...(toApplicationData(data) as Prisma.ApplicationUncheckedCreateInput), userId, cvId: null },
+          data: { ...(clearDeadlineAgenda(toApplicationData(data), data.status, data.nextActionNote) as Prisma.ApplicationUncheckedCreateInput), userId, cvId: null },
           select: { id: true, status: true },
         });
         created.push(app.id);

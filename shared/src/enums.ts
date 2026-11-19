@@ -73,3 +73,13 @@ export type SortField = (typeof SORT_FIELDS)[number];
 
 export const MAX_ACTIVE_APPLICATIONS = 2000;
 export const PAGE_SIZE = 20;
+
+/**
+ * Catatan tindak lanjut otomatis dari batas melamar lowongan (extension, isi otomatis AI, menu Bagikan).
+ * Hanya berguna selama lamaran masih Wishlist: begitu sudah melamar (Applied atau sesudahnya), agenda ini dihapus.
+ */
+export const DEADLINE_NOTE = 'Batas akhir melamar';
+
+/** True bila agenda batas melamar harus dibuang untuk status ini (semua status selain Wishlist). */
+export const dropsDeadlineAgenda = (status: Status | null | undefined, note: string | null | undefined) =>
+  !!status && status !== 'wishlist' && note === DEADLINE_NOTE;

@@ -1,5 +1,7 @@
 import {
   applicationCreateSchema,
+  DEADLINE_NOTE,
+  dropsDeadlineAgenda,
   normalizeJobUrl,
   STATUS_LABELS,
   todayISO,
@@ -126,6 +128,8 @@ export function App() {
   const [page, setPage] = useState<ScrapeResult | null>(null);
   const [form, setForm] = useState<FormState | null>(null);
   const [nextAction, setNextAction] = useState<{ date: string; note: string } | null>(null);
+  // Agenda batas melamar hanya berguna selama masih Wishlist; begitu Applied, tidak ikut disimpan.
+  const agenda = nextAction && !dropsDeadlineAgenda(form?.status, nextAction.note) ? nextAction : null;
   const [duplicate, setDuplicate] = useState<{ company: string; position: string; status: string } | null>(null);
   const [credits, setCredits] = useState<{ balance: number; unlimited: boolean } | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -147,7 +151,7 @@ export function App() {
     setPage(scraped);
     setForm(initialForm(scraped));
     // Batas melamar dari halaman lowongan → agenda tindak lanjut (bila belum lewat).
-    setNextAction(scraped.deadline && scraped.deadline >= todayISO() ? { date: scraped.deadline, note: 'Batas akhir melamar' } : null);
+    setNextAction(scraped.deadline && scraped.deadline >= todayISO() ? { date: scraped.deadline, note: DEADLINE_NOTE } : null);
     if (sessionResult instanceof ApiError || sessionResult instanceof Error) {
       const e = sessionResult as ApiError;
       if (e.status === 401) setView({ kind: 'login' });
@@ -218,7 +222,7 @@ export function App() {
             }
           : f,
       );
-      if (d.deadline && d.deadline >= todayISO()) setNextAction({ date: d.deadline, note: 'Batas akhir melamar' });
+      if (d.deadline && d.deadline >= todayISO()) setNextAction({ date: d.deadline, note: DEADLINE_NOTE });
       setMessage({
         tone: 'info',
         text: d.company || d.position ? 'Terisi oleh AI. Periksa kembali sebelum menyimpan.' : 'AI tidak menemukan info lowongan yang jelas di layar ini.',
@@ -246,8 +250,8 @@ export function App() {
       salaryMax: form.salaryMax || undefined,
       jobDescription: form.jobDescription || undefined,
       notes: form.notes || undefined,
-      nextActionDate: nextAction?.date,
-      nextActionNote: nextAction?.note,
+      nextActionDate: agenda?.date,
+      nextActionNote: agenda?.note,
       ...(cvs ? { cvId: cvId ? Number(cvId) : null } : {}),
     } as ApplicationCreateInput;
     const parsed = applicationCreateSchema.safeParse(input);
@@ -447,7 +451,10 @@ export function App() {
             <Field label="Catatan" error={errors.notes}>
               <textarea rows={3} value={form.notes} onChange={(e) => set('notes', e.target.value)} />
             </Field>
-            {nextAction && <p className="muted small">Agenda: {nextAction.note} ({nextAction.date})</p>}
+            {agenda && <p className="muted small">Agenda: {agenda.note} ({agenda.date})</p>}
+            {nextAction && !agenda && (
+              <p className="muted small">Batas melamar ({nextAction.date}) tidak dijadikan agenda karena status sudah Applied.</p>
+            )}
           </details>
           {jobUrl && (
             <p className="muted small url" title={jobUrl}>

@@ -1,6 +1,8 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
   applicationCreateSchema,
+  DEADLINE_NOTE,
+  dropsDeadlineAgenda,
   SOURCE_LABELS,
   SOURCES,
   STATUS_LABELS,
@@ -11,6 +13,7 @@ import {
   type Application,
   type ApplicationCreate,
   type JobExtract,
+  type Status,
 } from '@wt/shared';
 import { ChevronDown, Lock } from 'lucide-react';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
@@ -130,13 +133,33 @@ export function ApplicationFormDialog({ open, application, prefill, onOpenChange
     setError,
     setValue,
     getValues,
+    watch,
     formState: { errors, isDirty, isSubmitting },
   } = useForm<FormValues>({ resolver, defaultValues: toFormValues(null) });
+
+  // Agenda "Batas akhir melamar" hanya untuk Wishlist: begitu status Applied atau sesudahnya, kosongkan
+  // (aturan yang sama juga dijalankan server).
+  // Tanggalnya disimpan sementara agar kembali bila status diganti lagi ke Wishlist.
+  const status = watch('status');
+  const nextActionNote = watch('nextActionNote');
+  const stashedDeadline = useRef<string | null>(null);
+  useEffect(() => {
+    if (dropsDeadlineAgenda(status as Status, nextActionNote)) {
+      stashedDeadline.current = getValues('nextActionDate') || null;
+      setValue('nextActionDate', '', { shouldDirty: true });
+      setValue('nextActionNote', '', { shouldDirty: true });
+    } else if (status === 'wishlist' && stashedDeadline.current && !nextActionNote && !getValues('nextActionDate')) {
+      setValue('nextActionDate', stashedDeadline.current, { shouldDirty: true });
+      setValue('nextActionNote', DEADLINE_NOTE, { shouldDirty: true });
+      stashedDeadline.current = null;
+    }
+  }, [status, nextActionNote, setValue, getValues]);
 
   useEffect(() => {
     if (!open) return;
     reset(toFormValues(application));
     cvDefaulted.current = false;
+    stashedDeadline.current = null;
     setFormError(null);
     const filled = Object.entries(application ? {} : (prefill?.values ?? {})).filter(([, v]) => v);
     // Nilai dari loker yang dibagikan dianggap perubahan (form minta konfirmasi bila ditutup).
@@ -181,7 +204,7 @@ export function ApplicationFormDialog({ open, application, prefill, onOpenChange
     // Batas akhir melamar (dari poster) dijadikan agenda tindak lanjut agar muncul di pengingat.
     if (d.deadline && d.deadline >= todayISO()) {
       setValue('nextActionDate', d.deadline, opts);
-      setValue('nextActionNote', 'Batas akhir melamar', opts);
+      setValue('nextActionNote', DEADLINE_NOTE, opts);
     }
     const notes = [
       d.applyInstructions && `Cara melamar: ${d.applyInstructions}`,

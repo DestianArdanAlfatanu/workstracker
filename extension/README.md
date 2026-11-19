@@ -18,7 +18,7 @@ Simpan lowongan dari portal loker (LinkedIn, Jobstreet, Glints, Dealls, Kalibrr,
 | Instagram | Akun pengunggah, caption, link. **Premium:** "Isi dari poster di layar (AI)" membaca tangkapan layar post (1 kredit) | uji extension + AI |
 
 - Semua pembaca ada di `src/lib/scrape.ts`. Selector tiap portal dikumpulkan dalam konstanta (`LINKEDIN`, `JOBSTREET`, `INDEED`, …) agar mudah diperbarui.
-- Gaji dibaca sebagai gaji bulanan rupiah ("Rp 5 – 7 jt", "IDR 5.000.000 - 7.000.000/bulan"); "Dirahasiakan" / gaji per tahun diabaikan. Batas melamar yang belum lewat otomatis dijadikan agenda "Batas akhir melamar".
+- Gaji dibaca sebagai gaji bulanan rupiah ("Rp 5 – 7 jt", "IDR 5.000.000 - 7.000.000/bulan"); "Dirahasiakan" / gaji per tahun diabaikan. Batas melamar yang belum lewat dijadikan agenda "Batas akhir melamar" bila disimpan ke **Wishlist**. Bila disimpan sebagai Applied (atau lamaran Wishlist kemudian pindah ke Applied dan seterusnya), agenda itu tidak disimpan atau dihapus otomatis oleh server (`clearDeadlineAgenda` di `api/src/services/applications.service.ts`).
 - Sumber lamaran terisi sesuai portal (Dealls, KitaLulus, Loker.id, Indeed, Karirhub punya sumber sendiri), sehingga Insight bisa membandingkan response rate per portal.
 - Link lowongan dinormalisasi (`normalizeJobUrl` di `@wt/shared`), jadi lowongan yang sama terdeteksi duplikat walau dibuka dari panel pencarian atau link berparameter pelacak.
 

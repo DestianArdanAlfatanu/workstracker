@@ -120,7 +120,7 @@ Folder `extension/` (Manifest V3, Standar ke atas).
 - **Isi otomatis dari halaman lowongan:** perusahaan, posisi, lokasi, tipe kerja, gaji, deskripsi, dan batas melamar dari LinkedIn, Jobstreet, Glints, Kalibrr, Dealls, KitaLulus, Loker.id, Indeed, dan Karirhub.
 - **Instagram:** caption masuk ke deskripsi. Pengguna Premium bisa meminta AI membaca poster yang terlihat di layar.
 - **Peringatan duplikat** bila link lowongan sudah pernah disimpan. Link dinormalisasi agar format berbeda tetap terdeteksi.
-- **Penyimpanan:** pilih tahap Wishlist/Applied dan CV yang dipakai. Batas melamar dijadikan agenda "Batas akhir melamar".
+- **Penyimpanan:** pilih tahap Wishlist/Applied dan CV yang dipakai. Batas melamar dijadikan agenda "Batas akhir melamar" selama masih Wishlist; begitu Applied atau sesudahnya, agenda itu dihapus otomatis.
 
 ## 9. AI Career Assistant (Premium)
 

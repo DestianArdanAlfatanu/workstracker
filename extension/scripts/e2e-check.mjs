@@ -186,6 +186,39 @@ try {
   await web.getByRole('heading', { name: 'Lamaran Saya' }).waitFor();
   log('OK website tetap login setelah dipakai extension');
 
+  // 4b. Batas melamar jadi agenda hanya bila disimpan ke Wishlist (Applied = sudah melamar, agenda dibuang)
+  const deadline = new Date(Date.now() + 14 * 86_400_000).toLocaleDateString('sv-SE', { timeZone: 'Asia/Jakarta' });
+  await ctx.route('https://glints.com/**', (route) => {
+    const slug = new URL(route.request().url()).pathname.split('/').pop();
+    const ld = { '@context': 'https://schema.org', '@type': 'JobPosting', title: `Admin Gudang ${slug}`, validThrough: `${deadline}T23:59:59+07:00`,
+      hiringOrganization: { '@type': 'Organization', name: `PT Batas ${slug}` }, jobLocation: { '@type': 'Place', address: { addressLocality: 'Bandung' } } };
+    return route.fulfill({ contentType: 'text/html; charset=utf-8', body: `<!doctype html><html><head><title>Lowongan</title><script type="application/ld+json">${JSON.stringify(ld)}</script></head><body><h1>Admin Gudang</h1></body></html>` });
+  });
+  const savedByCompany = async (company) =>
+    (await (await web.request.get(`${WT}/api/v1/applications?q=${encodeURIComponent(company)}`, { headers: await stdAuth() })).json()).data[0];
+  for (const [slug, status] of [['applied', 'Applied'], ['wishlist', 'Wishlist']]) {
+    const gl = await ctx.newPage();
+    await gl.goto(`https://glints.com/id/opportunities/jobs/${slug}`);
+    pop = await openPopup(await tabIdOf(`https://glints.com/id/opportunities/jobs/${slug}`));
+    await pop.getByText(status, { exact: true }).click();
+    await pop.locator('details summary').first().click();
+    const info = await pop.locator('body').innerText();
+    if (slug === 'applied') assert(info.includes('tidak dijadikan agenda'), 'pop-up Applied: batas melamar tidak dijadikan agenda');
+    else assert(info.includes(`Agenda: Batas akhir melamar (${deadline})`), 'pop-up Wishlist: batas melamar jadi agenda');
+    await pop.getByRole('button', { name: `Simpan ke ${status}` }).click();
+    await pop.getByText('Lamaran tersimpan').waitFor();
+    await pop.close();
+    await gl.close();
+    const row = await savedByCompany(`PT Batas ${slug}`);
+    if (slug === 'applied') assert(row.status === 'applied' && row.nextActionDate === null, 'tersimpan Applied tanpa agenda batas melamar');
+    else assert(row.status === 'wishlist' && row.nextActionDate === deadline && row.nextActionNote === 'Batas akhir melamar', 'tersimpan Wishlist dengan agenda batas melamar');
+  }
+  // Wishlist lalu dipindah ke Applied di website → agenda batas melamar hilang
+  const wl = await savedByCompany('PT Batas wishlist');
+  await web.request.patch(`${WT}/api/v1/applications/${wl.id}/status`, { headers: await stdAuth(), data: { status: 'applied' } });
+  const moved = await savedByCompany('PT Batas wishlist');
+  assert(moved.status === 'applied' && moved.nextActionDate === null && moved.nextActionNote === null, 'Wishlist → Applied: agenda batas melamar terhapus');
+
   // 5. Upgrade Premium → Instagram: AI baca poster dari layar
   if (POSTER) {
     await adminApi.patch(`/api/v1/admin/users/${std.user.id}/plan`, { headers: H, data: { plan: 'premium', price: 60000, paidAt: today } });

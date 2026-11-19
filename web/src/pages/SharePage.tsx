@@ -1,4 +1,4 @@
-import { parseSharedJob, SOURCE_LABELS, STATUS_LABELS, todayISO } from '@wt/shared';
+import { DEADLINE_NOTE, parseSharedJob, SOURCE_LABELS, STATUS_LABELS, todayISO } from '@wt/shared';
 import { ExternalLink, ImageIcon, Link2, ListChecks, Pencil, Share2, TriangleAlert } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -73,7 +73,7 @@ export function SharePage() {
         notes: shared.text ? shared.text.slice(0, 5000) : undefined,
         jobDescription: info?.description ?? undefined,
         nextActionDate: deadline,
-        nextActionNote: deadline ? 'Batas akhir melamar' : undefined,
+        nextActionNote: deadline ? DEADLINE_NOTE : undefined,
       },
       aiText: has('ai') && aiText.length >= 80 ? aiText : undefined,
       aiImages: images?.length ? images : undefined,

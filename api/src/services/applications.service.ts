@@ -1,5 +1,7 @@
 import { Prisma } from '@prisma/client';
 import {
+  DEADLINE_NOTE,
+  dropsDeadlineAgenda,
   FINAL_STATUSES,
   jobUrlKey,
   MAX_ACTIVE_APPLICATIONS,
@@ -65,6 +67,22 @@ export function toApplicationData(input: FieldInput) {
   if (input.appliedAt !== undefined) data.appliedAt = fromISODate(input.appliedAt);
   if (input.nextActionDate !== undefined) {
     data.nextActionDate = input.nextActionDate ? fromISODate(input.nextActionDate) : null;
+  }
+  return data;
+}
+
+/**
+ * Agenda "Batas akhir melamar" hanya berguna selama lamaran masih Wishlist. Bila status akhirnya
+ * Applied atau sesudahnya, tindak lanjut itu dikosongkan. Agenda lain buatan user tidak disentuh.
+ */
+export function clearDeadlineAgenda<T extends { nextActionDate?: unknown; nextActionNote?: unknown }>(
+  data: T,
+  status: Status | null | undefined,
+  note: string | null | undefined,
+) {
+  if (dropsDeadlineAgenda(status, note)) {
+    data.nextActionDate = null;
+    data.nextActionNote = null;
   }
   return data;
 }
@@ -142,7 +160,11 @@ export async function create(userId: bigint, input: ApplicationCreate) {
       : ((await prisma.cvDocument.findFirst({ where: { userId, isDefault: true, archivedAt: null }, select: { id: true } }))?.id ?? null);
   return prisma.$transaction(async (tx) => {
     const app = await tx.application.create({
-      data: { ...(toApplicationData(input) as Prisma.ApplicationUncheckedCreateInput), userId, cvId },
+      data: {
+        ...(clearDeadlineAgenda(toApplicationData(input), input.status, input.nextActionNote) as Prisma.ApplicationUncheckedCreateInput),
+        userId,
+        cvId,
+      },
       include: withCv,
     });
     await tx.statusHistory.create({
@@ -163,7 +185,11 @@ export async function update(userId: bigint, id: bigint, input: ApplicationUpdat
     });
   }
 
-  const data = toApplicationData(input);
+  const data = clearDeadlineAgenda(
+    toApplicationData(input),
+    input.status ?? existing.status,
+    input.nextActionNote !== undefined ? input.nextActionNote : existing.nextActionNote,
+  );
   if (input.cvId !== undefined) data.cvId = await resolveCvId(userId, input.cvId, existing.cvId);
   return prisma.$transaction(async (tx) => {
     const app = await tx.application.update({ where: { id: existing.id }, data, include: withCv });
@@ -258,6 +284,12 @@ export async function bulk(
     });
     if (targets.length === 0) return 0;
     await tx.application.updateMany({ where: { id: { in: targets.map((t) => t.id) } }, data: { status } });
+    if (status !== 'wishlist') {
+      await tx.application.updateMany({
+        where: { id: { in: targets.map((t) => t.id) }, nextActionNote: DEADLINE_NOTE },
+        data: { nextActionDate: null, nextActionNote: null },
+      });
+    }
     await tx.statusHistory.createMany({
       data: targets.map((t) => ({ applicationId: t.id, fromStatus: t.status, toStatus: status })),
     });
