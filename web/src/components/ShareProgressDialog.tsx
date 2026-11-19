@@ -39,13 +39,29 @@ function loadImage(src: string) {
   });
 }
 
-/** Gambar kartu progres di canvas (tanpa library). */
+/**
+ * Tulis teks dengan ukuran font yang diperkecil bila melebihi maxW (paling kecil 55% ukuran awal),
+ * lalu dipotong dengan "…" bila masih terlalu panjang.
+ */
+function fitText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, maxW: number, weight: number, size: number) {
+  let px = size;
+  ctx.font = `${weight} ${px}px ${FONT}`;
+  while (ctx.measureText(text).width > maxW && px > size * 0.55) {
+    px -= 1;
+    ctx.font = `${weight} ${px}px ${FONT}`;
+  }
+  let out = text;
+  while (ctx.measureText(out).width > maxW && out.length > 1) out = out.slice(0, -2) + '…';
+  ctx.fillText(out, x, y);
+}
+
+/** Gambar kartu progres di canvas (tanpa library). Posisi dihitung berurutan dari atas agar tidak menumpuk. */
 function drawCard(canvas: HTMLCanvasElement, d: CardData, format: Format, logo: HTMLImageElement) {
   const { w, h } = SIZES[format];
   canvas.width = w;
   canvas.height = h;
   const ctx = canvas.getContext('2d')!;
-  const s = format === 'story' ? 1 : 0.62; // skala tipografi
+  const story = format === 'story';
 
   // Latar
   const bg = ctx.createLinearGradient(0, 0, w, h);
@@ -59,29 +75,32 @@ function drawCard(canvas: HTMLCanvasElement, d: CardData, format: Format, logo: 
   ctx.fillStyle = glow;
   ctx.fillRect(0, 0, w, h);
 
-  const pad = format === 'story' ? 84 : 64;
+  const pad = story ? 84 : 60;
+  const innerW = w - pad * 2;
+  ctx.textBaseline = 'alphabetic';
 
   // Logo resmi versi latar gelap (assets/workstracker-logo-on-dark.svg)
-  const logoH = 72 * s + 8;
+  const logoH = story ? 80 : 50;
   ctx.drawImage(logo, pad, pad, logoH * LOGO_RATIO, logoH);
-  // Judul
-  ctx.textBaseline = 'alphabetic';
+
+  // Subjudul & judul, di bawah logo
+  const subSize = story ? 38 : 24;
+  const titleSize = story ? 76 : 48;
+  let y = pad + logoH + (story ? 80 : 48);
   ctx.fillStyle = 'rgba(255,255,255,0.7)';
-  ctx.font = `500 ${34 * s + 4}px ${FONT}`;
-  const top = format === 'story' ? 330 : 190;
-  ctx.fillText(`Progres pencarian kerja · ${monthYear.format(new Date())}`, pad, top - 100 * s);
+  fitText(ctx, `Progres pencarian kerja · ${monthYear.format(new Date())}`, pad, y, innerW, 500, subSize);
+  y += titleSize + (story ? 18 : 12);
   ctx.fillStyle = '#fff';
-  ctx.font = `800 ${70 * s + 6}px ${FONT}`;
-  ctx.fillText(d.name ? `Rekap lamaran ${d.name}` : 'Rekap lamaranku', pad, top);
+  fitText(ctx, d.name ? `Rekap lamaran ${d.name}` : 'Rekap lamaranku', pad, y, innerW, 800, titleSize);
 
   // Angka utama
-  if (format === 'story') {
-    ctx.font = `800 220px ${FONT}`;
+  if (story) {
+    y += 270;
     ctx.fillStyle = '#ffffff';
-    ctx.fillText(num.format(d.total), pad - 6, 600);
-    ctx.font = `600 44px ${FONT}`;
+    fitText(ctx, num.format(d.total), pad - 6, y, innerW, 800, 220);
+    y += 70;
     ctx.fillStyle = '#93c5fd';
-    ctx.fillText('lamaran dikirim', pad, 670);
+    fitText(ctx, 'lamaran dikirim', pad, y, innerW, 600, 44);
   }
 
   // Kotak statistik
@@ -92,30 +111,41 @@ function drawCard(canvas: HTMLCanvasElement, d: CardData, format: Format, logo: 
     { v: `${num.format(Math.round(d.responseRate))}%`, l: 'Response rate' },
     ...(format === 'story' ? [{ v: d.weekGoal ? `${d.weekCount}/${d.weekGoal}` : num.format(d.weekCount), l: 'Lamaran minggu ini' }] : []),
   ];
-  const cols = format === 'story' ? 2 : 4;
-  const gap = 24;
-  const boxW = (w - pad * 2 - gap * (cols - 1)) / cols;
-  const boxH = format === 'story' ? 200 : 170;
-  const startY = format === 'story' ? 740 : 290;
+  const cols = story ? 2 : 4;
+  const gap = story ? 24 : 20;
+  const boxW = (innerW - gap * (cols - 1)) / cols;
+  const boxH = story ? 200 : 160;
+  const boxPad = story ? 32 : 24;
+  const footSize = story ? 34 : 22;
+  const footY = h - (story ? pad * 0.8 : pad * 0.75);
+  // LinkedIn: kotak statistik di tengah ruang antara judul dan footer.
+  const minY = y + (story ? 60 : 44);
+  const maxY = footY - footSize - 36 - boxH;
+  const startY = story ? minY : Math.max(minY, Math.round((minY + maxY) / 2));
   stats.forEach((st, i) => {
     const x = pad + (i % cols) * (boxW + gap);
-    const y = startY + Math.floor(i / cols) * (boxH + gap);
+    const by = startY + Math.floor(i / cols) * (boxH + gap);
     ctx.fillStyle = 'rgba(255,255,255,0.08)';
     ctx.beginPath();
-    ctx.roundRect(x, y, boxW, boxH, 28);
+    ctx.roundRect(x, by, boxW, boxH, story ? 28 : 22);
     ctx.fill();
     ctx.fillStyle = '#fff';
-    ctx.font = `800 ${format === 'story' ? 84 : 64}px ${FONT}`;
-    ctx.fillText(st.v, x + 32, y + boxH / 2 + 10);
+    fitText(ctx, st.v, x + boxPad, by + boxH / 2 + (story ? 10 : 8), boxW - boxPad * 2, 800, story ? 84 : 60);
     ctx.fillStyle = 'rgba(255,255,255,0.7)';
-    ctx.font = `500 ${format === 'story' ? 32 : 26}px ${FONT}`;
-    ctx.fillText(st.l, x + 32, y + boxH - 32);
+    fitText(ctx, st.l, x + boxPad, by + boxH - boxPad, boxW - boxPad * 2, 500, story ? 32 : 24);
   });
 
-  // Footer
-  ctx.fillStyle = 'rgba(255,255,255,0.6)';
-  ctx.font = `500 ${30 * s + 6}px ${FONT}`;
-  ctx.fillText(`Lacak lamaranmu dengan WorksTracker · ${window.location.host}`, pad, h - pad * 0.8);
+  // Footer: di Instagram dua baris (alamat situs cukup panjang), di LinkedIn satu baris.
+  const host = window.location.host;
+  if (story) {
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    fitText(ctx, 'Lacak lamaranmu dengan WorksTracker', pad, footY - footSize - 14, innerW, 500, footSize);
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    fitText(ctx, host, pad, footY, innerW, 600, footSize);
+  } else {
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    fitText(ctx, `Lacak lamaranmu dengan WorksTracker · ${host}`, pad, footY, innerW, 500, footSize);
+  }
 }
 
 function cardData(s: StatsSummary, name: string | null): CardData {
